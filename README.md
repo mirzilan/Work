@@ -1,51 +1,84 @@
-# Green Hydrogen LCOH Project-Finance Model
+# Green Hydrogen LCOH — Project-Finance Model
 
-A quarterly-period infrastructure financial model for a green hydrogen production
-project, headlined by an **unlevered LCOH** ($/kg H2), with two circularity
-problems handled deliberately:
+A bankable, semi-annual project-finance model for a green hydrogen production
+project, headlined by **LCOH** (levelised cost of hydrogen, nominal & real),
+built to **FAST / F1F9** conventions. Generated deterministically from source by
+`scripts/build_model.py` (openpyxl).
 
-- **IDC (Interest During Construction)** is solved in **closed form** as a plain
-  Excel formula (no iterative calculation, no VBA) — see the derivation on the
-  `Capex_Construction` tab.
-- **Post-COD debt is sculpted to a flat target DSCR.** The sculpting recursion
-  itself is live Excel formulas driven by one scalar cell (`GearingFactor`).
-  Solving for the debt quantum that fully amortizes by tenor end *is* a genuine
-  root-finding problem (CFADS is irregular period to period), so that part is
-  done in VBA (bisection).
+## Modelling standard (FAST / F1F9)
+
+- **One row = one calculation = a single formula copied unbroken across the row.**
+  Timing is driven by **flag & counter rows** on the Time (`TM`) sheet, never by
+  branching a formula per column.
+- **Corkscrews for every balance** (`opening = prior closing`), with a **period-0
+  column** so even the first period's formula is identical.
+- **No live circular references** (iterative calc stays OFF as a tripwire):
+  closed-form IDC, all interest on opening balances, **tax paid one period in
+  arrears**, DSRA interest on opening balance. The only "solve" is a single scalar
+  (the sculpting DSCR), done outside recalc by the macro / Goal Seek.
+- Inputs (blue) live only on the `IN` sheet; black = formula; green = cross-sheet
+  link. Units column throughout, frozen panes, sheet mnemonics.
+
+## Sheet map
+
+| | | |
+|---|---|---|
+| `CV` Cover | `IN` Inputs | `TM` Time (flags/indices/DFs) |
+| `CX` Construction & capex (closed-form IDC) | `PR` Production & revenue | `OP` Operating costs |
+| `WC` Working capital | `TX` Tax (dep., losses, arrears) | `CF` CFADS |
+| `DB` Debt (sculpted) | `DS` DSRA | `WF` Cash waterfall |
+| `CR` Cover ratios (DSCR/LLCR/PLCR) | `FS` Financial statements | `RT` Returns |
+| `LC` LCOH (nominal/real + cost stack) | `CK` Checks | `OUT` Dashboard |
+
+## Two circularity problems, handled the right way
+
+1. **IDC (interest during construction)** — solved in **closed form** on `CX`
+   (`I = r·(open + draw/2) / (1 − r·(1−f)/2)`, the linear circularity isolated
+   algebraically). No iteration, no VBA. `f` splits interest between cash-funded
+   (equity) and capitalised (rolled into the balance).
+2. **Post-COD debt sizing** — the debt is **sculpted to a flat DSCR** every period
+   (live formulas on `DB`). Gearing is fixed at the construction-facility level
+   (no refinancing gap); the flat **sculpting DSCR is solved** so the debt
+   amortises to zero exactly at tenor end. That single-scalar root-find is the
+   genuine numerical step — done by the `RunDebtSizing` macro, or by native Goal
+   Seek. The solved value ships as the default so the workbook opens converged.
+
+## Solving / re-solving the debt
+
+The base case ships pre-solved. After changing any input, re-solve the sculpting
+DSCR one of two ways:
+
+- **Macro:** import the `vba/*.bas` files (below) and run `RunDebtSizing`.
+- **Goal Seek (no macros):** Data ▸ What-If Analysis ▸ Goal Seek —
+  set cell **`EndingBalanceResidual`** to value **0** by changing cell
+  **`TargetDSCR_Input`** (labelled *Sculpting DSCR (solved)* on `IN`).
 
 ## Files
 
-- `HydrogenLCOH_Model.xlsx` — the workbook (all sheets, formulas, named ranges).
-- `scripts/build_model.py` — regenerates the workbook from scratch (`python3 scripts/build_model.py`, requires `openpyxl`).
-- `vba/mod_DebtSizing.bas` — the bisection macro that sizes/sculpts the debt.
-- `vba/mod_Utilities.bas` — shared VBA helpers.
-- `vba/mod_Sensitivity.bas` — runs the scenario grid on `Returns_Sensitivities`.
+- `HydrogenLCOH_Model.xlsx` — the model (all sheets, formulas, named ranges).
+- `scripts/build_model.py` — regenerates the workbook (`python3 scripts/build_model.py`).
+- `vba/mod_DebtSizing.bas` — boundary bisection that solves the sculpting DSCR.
+- `vba/mod_Sensitivity.bas` — populates the dashboard sensitivity grid.
+- `vba/mod_Utilities.bas` — shared helpers.
 
 ## Enabling the macros
 
-This was built headlessly (no Excel available in the build environment), so the
-`.xlsx` ships without a compiled VBA project — Excel can't compile VBA from
-plain text non-interactively. To wire up the macros:
+The workbook is built headlessly (no Excel in the build environment), so it ships
+as `.xlsx` with the VBA as importable text. To wire up the macros:
 
 1. Open `HydrogenLCOH_Model.xlsx` in Excel.
-2. Alt+F11 to open the VBA editor, then **File > Import File** and import all
-   three `.bas` files from `vba/`.
-3. On the `Dashboard` sheet, add two Form Control buttons and assign
-   `RunDebtSizing` and `RunSensitivityGrid` to them respectively.
-4. **File > Save As** and choose **Excel Macro-Enabled Workbook (.xlsm)**.
+2. Alt+F11 ▸ **File ▸ Import File** ▸ import the three `vba/*.bas` files.
+3. On `OUT`, add Form Control buttons and assign `RunDebtSizing` and
+   `RunSensitivityGrid`.
+4. **Save As ▸ Excel Macro-Enabled Workbook (.xlsm)**.
 
-**Fallback without macros:** the sculpting recursion is pure formulas keyed off
-`GearingFactor`, so you can size debt manually with native Goal Seek:
-*Data > What-If Analysis > Goal Seek* — Set cell `EndingBalanceResidual`,
-To value `0`, By changing cell `GearingFactor`.
+Without the macros the model is fully functional — use the Goal Seek fallback
+above to re-size the debt.
 
-## Model conventions
+## Base-case headlines (recalculated)
 
-Quarterly periods across columns (D onward), one line item per row. 2-year
-construction + 20-year operations by default (edit `Assumptions`). Iterative
-calculation is deliberately left **off** — nothing in this design should ever
-need it; a circular-reference warning means a real bug, not a setting to flip.
-
-See `Cover` sheet inside the workbook for the full conventions legend, and
-`/root/.claude/plans/plan-first-can-u-playful-beaver.md` (session-local) for
-the original design writeup.
+LCOH ≈ **$7.23/kg** nominal (**$6.86/kg** real); project IRR ≈ **13%**, equity
+IRR ≈ **23%**; DSCR sculpted flat at ≈ **2.20×** (lender covenant 1.30×);
+LLCR ≈ **2.20×**, PLCR ≈ **2.91×**; gearing ≈ 73% of capex; all integrity checks
+on `CK` pass (balance sheet balances every period, debt fully amortised, reserves
+and cash non-negative). Figures move with the inputs — re-solve after changes.

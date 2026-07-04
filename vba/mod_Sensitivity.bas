@@ -1,62 +1,52 @@
 Attribute VB_Name = "mod_Sensitivity"
 Option Explicit
 
-' Loops the scenario grid on Returns_Sensitivities (populated by
-' scripts/build_model.py: columns B-E hold each scenario's Capex/Opex/WACC/
-' Utilization deltas), re-runs RunDebtSizing (mod_DebtSizing) for each one,
-' and writes LCOH / Equity IRR / Min DSCR into columns F-H.
-'
-' Base-case assumption cells are perturbed and restored around each scenario
-' so this can be re-run repeatedly without drifting the base case.
+' Populates the sensitivity grid on the OUT (Dashboard) sheet. Each scenario row
+' (columns B-E: Capex delta%, Power delta%, Price delta%, WACC delta bps) is
+' applied to the base-case inputs, the debt is re-sized (RunDebtSizing re-solves
+' the sculpting DSCR), and the resulting LCOH (nominal), equity IRR and minimum
+' DSCR are written back to columns F-H. Base-case inputs are restored afterwards
+' so the grid can be re-run without drift.
 
 Public Sub RunSensitivityGrid()
-    Dim baseCapex As Double, baseFixedOpex As Double, baseVarOpex As Double
-    Dim baseWACC As Double, baseCapFactor As Double
+    Dim baseCapex As Double, basePower As Double, basePrice As Double, baseWACC As Double
     Dim r As Long, firstRow As Long, lastRow As Long
-    Dim dCapex As Double, dOpex As Double, dWaccBps As Double, dUtil As Double
+    Dim minDSCR As Double
 
     baseCapex = Range("TotalCapex").Value
-    baseFixedOpex = Range("FixedOpexAnnual").Value
-    baseVarOpex = Range("VariableOpexPerKg").Value
+    basePower = Range("PowerPrice").Value
+    basePrice = Range("OfftakePrice").Value
     baseWACC = Range("WACC").Value
-    baseCapFactor = Range("CapacityFactor").Value
 
-    firstRow = Range("SensitivityGrid_FirstRow").Row
-    lastRow = Range("SensitivityGrid_LastRow").Row
+    firstRow = Range("SensFirstRow").Row
+    lastRow = Range("SensLastRow").Row
 
     Application.ScreenUpdating = False
     Application.StatusBar = "Running sensitivity grid..."
     On Error GoTo Restore
 
     For r = firstRow To lastRow
-        dCapex = Cells(r, 2).Value
-        dOpex = Cells(r, 3).Value
-        dWaccBps = Cells(r, 4).Value
-        dUtil = Cells(r, 5).Value
+        Range("TotalCapex").Value = baseCapex * (1 + Cells(r, 2).Value)
+        Range("PowerPrice").Value = basePower * (1 + Cells(r, 3).Value)
+        Range("OfftakePrice").Value = basePrice * (1 + Cells(r, 4).Value)
+        Range("WACC").Value = baseWACC + Cells(r, 5).Value / 10000#
 
-        Range("TotalCapex").Value = baseCapex * (1 + dCapex)
-        Range("FixedOpexAnnual").Value = baseFixedOpex * (1 + dOpex)
-        Range("VariableOpexPerKg").Value = baseVarOpex * (1 + dOpex)
-        Range("WACC").Value = baseWACC + dWaccBps / 10000#
-        Range("CapacityFactor").Value = baseCapFactor * (1 + dUtil)
+        RunDebtSizing            ' re-solve sculpting DSCR for this scenario
 
-        RunDebtSizing ' re-sizes GearingFactor for this scenario, recalcs
-
-        Cells(r, 6).Value = Range("LCOH_USD_per_kg").Value
+        minDSCR = Application.WorksheetFunction.Min(Range("DSCR_Row"))
+        Cells(r, 6).Value = Range("LCOH_Nominal").Value
         Cells(r, 7).Value = Range("EquityIRR").Value
-        Cells(r, 8).Value = Application.WorksheetFunction.Min(Range("DSCR_Actual_Row"))
+        Cells(r, 8).Value = minDSCR
     Next r
 
 Restore:
     Range("TotalCapex").Value = baseCapex
-    Range("FixedOpexAnnual").Value = baseFixedOpex
-    Range("VariableOpexPerKg").Value = baseVarOpex
+    Range("PowerPrice").Value = basePower
+    Range("OfftakePrice").Value = basePrice
     Range("WACC").Value = baseWACC
-    Range("CapacityFactor").Value = baseCapFactor
-    RunDebtSizing ' restore GearingFactor to the base-case solve
+    RunDebtSizing                ' restore base-case solve
     Application.StatusBar = False
     Application.ScreenUpdating = True
-
     If Err.Number <> 0 Then
         MsgBox "RunSensitivityGrid failed: " & Err.Description, vbExclamation
     End If
