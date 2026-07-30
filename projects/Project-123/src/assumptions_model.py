@@ -16,6 +16,8 @@ ROW_OPEX_PCT = 9
 ROW_TAX_RATE = 10
 ROW_USEFUL_LIFE_YEARS = 11
 
+ROW_MAX_GEARING = 12
+
 ROW_PHASING_LABEL = 14
 ROW_PHASING_DATE = 15
 ROW_PHASING_PCT = 16
@@ -49,6 +51,7 @@ def build_assumptions_model(wb: Workbook, timeline: Timeline, inputs: ProjectInp
     _input(ws, "A9", "Opex % of Revenue", CELL_OPEX_PCT, inputs.revenue_opex.opex_pct_of_revenue, "0.00%")
     _input(ws, "A10", "Tax Rate", CELL_TAX_RATE, inputs.tax.tax_rate, "0.00%")
     _input(ws, "A11", "Useful Life (Years)", CELL_USEFUL_LIFE_YEARS, inputs.tax.useful_life_years, "0")
+    _input(ws, "A12", "Max Gearing (cap on DSCR-sculpted debt size)", "B12", 0.85, "0.00%")
 
     ws.cell(row=ROW_PHASING_LABEL, column=1, value="Capex Phasing % by Construction Month").font = Font(bold=True)
     ws.cell(row=ROW_PHASING_DATE, column=1, value="Period End Date")

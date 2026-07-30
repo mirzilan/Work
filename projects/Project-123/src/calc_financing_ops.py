@@ -6,138 +6,221 @@ from inputs import ProjectInputs
 from timeline import Timeline
 from workbook_builder import (
     FIRST_DATA_COL,
+    COLOR_INPUT,
     COLOR_FORMULA,
     COLOR_LINK,
     TAB_COLOR_CALC,
     col_letter,
 )
 
-ROW_DATE_HEADER = 2
-ROW_QUARTER_INDEX = 3
+CELL_SIZING_MODE = "B3"
+CELL_INTEREST_RATE = "B4"
+CELL_TARGET_DSCR = "B5"
+CELL_MAX_GEARING = "B6"
+CELL_STAGED_DEBT_SIZE = "B7"
+CELL_SCULPTED_CAPACITY = "B8"
+CELL_TENOR_YEARS = "B9"
+CELL_CONVERGENCE_GAP = "B10"
+CELL_IMPLIED_GEARING = "B11"
 
-ROW_OPENING_BAL = 5
-ROW_INTEREST = 6
-ROW_PRINCIPAL = 7
-ROW_DEBT_SERVICE = 8
-ROW_CLOSING_BAL = 9
-ROW_DSCR = 10   # display-only in Stage 1a; not yet used to size debt (that's Stage 1b sculpting)
+ABS_INTEREST_RATE = "$B$4"
+ABS_TARGET_DSCR = "$B$5"
+ABS_TENOR_YEARS = "$B$9"
+ABS_SIZING_MODE = "$B$3"
 
-ROW_CHECK_HEADER = 14
-ROW_CHECK_FULLY_AMORTIZED = 15
+ROW_DATE_HEADER = 13
+ROW_QUARTER_INDEX = 14
 
-INTEREST_RATE_CELL = "B4"
-TENOR_YEARS_CELL = "B9"
+ROW_OPENING_BAL = 16
+ROW_INTEREST = 17
+ROW_SCULPT_BASIS = 18   # CFADS / Target DSCR, uncapped — the stream the capacity PV discounts
+ROW_DEBT_SERVICE = 19   # actual service, floored at interest and capped at amount outstanding
+ROW_PRINCIPAL = 20
+ROW_CLOSING_BAL = 21
+ROW_DSCR = 22
+
+ROW_CHECK_HEADER = 25
+ROW_CHECK_FULLY_AMORTIZED = 26
+ROW_CHECK_SCULPT_CONVERGED = 27
+ROW_CHECK_MIN_DSCR = 28
+ROW_CHECK_PRINCIPAL_FLOORED = 29
 
 
 def build_calc_financing_ops(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) -> Worksheet:
     ws = wb.create_sheet("Calc_Financing_Ops")
     ws.sheet_properties.tabColor = TAB_COLOR_CALC
 
-    ws["A1"] = "Calc_Financing_Ops — Quarterly Debt Service (fixed amortization, Stage 1a)"
+    ws["A1"] = "Calc_Financing_Ops — Quarterly Debt Service (DSCR-sculpted, Loop 2)"
     ws["A1"].font = Font(bold=True, size=12)
 
+    n_quarters = len(timeline.operations_quarters)
+    tenor_quarters = min(inputs.financing.debt_tenor_years * 4, n_quarters)
+    first_col = col_letter(0)
+    last_col = col_letter(n_quarters - 1)
+    tenor_end_col = col_letter(tenor_quarters - 1)
+    last_cons_col = col_letter(len(timeline.construction_months) - 1)
+
+    ws["A3"] = "Debt Sizing Mode — linked from Cover"
+    ws[CELL_SIZING_MODE] = "=Cover!$B$17"
+    ws[CELL_SIZING_MODE].font = Font(color=COLOR_LINK)
+
     ws["A4"] = "Interest Rate (Annual) — linked from Assumptions_Model"
-    ws[INTEREST_RATE_CELL] = "=Assumptions_Model!$B$5"
-    ws[INTEREST_RATE_CELL].font = Font(color=COLOR_LINK)
-    ws[INTEREST_RATE_CELL].number_format = "0.00%"
+    ws[CELL_INTEREST_RATE] = "=Assumptions_Model!$B$5"
+    ws[CELL_INTEREST_RATE].font = Font(color=COLOR_LINK)
+    ws[CELL_INTEREST_RATE].number_format = "0.00%"
+
+    ws["A5"] = "Target DSCR — linked from Assumptions_Model"
+    ws[CELL_TARGET_DSCR] = "=Assumptions_Model!$B$7"
+    ws[CELL_TARGET_DSCR].font = Font(color=COLOR_LINK)
+    ws[CELL_TARGET_DSCR].number_format = "0.00x"
+
+    ws["A6"] = "Max Gearing (cap) — linked from Assumptions_Model"
+    ws[CELL_MAX_GEARING] = "=Assumptions_Model!$B$12"
+    ws[CELL_MAX_GEARING].font = Font(color=COLOR_LINK)
+    ws[CELL_MAX_GEARING].number_format = "0.00%"
+
+    ws["A7"] = "Staged Debt Size ($) — VBA-written, breaks Loop 2 circularity"
+    ws[CELL_STAGED_DEBT_SIZE] = float(inputs.capex.total_capex * inputs.financing.debt_pct_of_capex)
+    ws[CELL_STAGED_DEBT_SIZE].font = Font(color=COLOR_INPUT, bold=True)
+    ws[CELL_STAGED_DEBT_SIZE].number_format = "#,##0"
+
+    # With DSCR locked, the balance recursion is linear:
+    #   Balance(t+1) = Balance(t) x (1+r) - CFADS(t)/DSCR
+    # Setting Balance(T) = 0 and solving gives a closed form -- the sculpted debt capacity
+    # is simply the PV of the debt-service stream at the debt rate. No root-find required;
+    # the only iteration left is the tax-shield/IDC fixed point the staged cell breaks.
+    # The PV must discount the *uncapped* basis. Using the capped actual service instead
+    # makes the fixed point degenerate: once the balance reaches zero the service drops to
+    # zero, so the PV just reproduces whatever balance it was handed and any starting debt
+    # size looks "converged".
+    ws["A8"] = "Sculpted Debt Capacity ($) = PV of sculpting basis, capped at Max Gearing"
+    ws[CELL_SCULPTED_CAPACITY] = (
+        f"=MIN(NPV({ABS_INTEREST_RATE}/4,{first_col}{ROW_SCULPT_BASIS}:{tenor_end_col}{ROW_SCULPT_BASIS}),"
+        f"$B$6*Calc_Capex!${last_cons_col}$17)"
+    )
+    ws[CELL_SCULPTED_CAPACITY].font = Font(color=COLOR_FORMULA, bold=True)
+    ws[CELL_SCULPTED_CAPACITY].number_format = "#,##0"
 
     ws["A9"] = "Debt Tenor (Years) — linked from Assumptions_Model"
-    ws[TENOR_YEARS_CELL] = "=Assumptions_Model!$B$6"
-    ws[TENOR_YEARS_CELL].font = Font(color=COLOR_LINK)
+    ws[CELL_TENOR_YEARS] = "=Assumptions_Model!$B$6"
+    ws[CELL_TENOR_YEARS].font = Font(color=COLOR_LINK)
+
+    ws["A10"] = "Convergence Gap ($) = Capacity - Staged Debt Size"
+    ws[CELL_CONVERGENCE_GAP] = "=$B$8-$B$7"
+    ws[CELL_CONVERGENCE_GAP].font = Font(color=COLOR_FORMULA, bold=True)
+    ws[CELL_CONVERGENCE_GAP].number_format = "#,##0.00"
+
+    ws["A11"] = "Implied Gearing (solved) = Opening Debt / Total Project Cost"
+    ws[CELL_IMPLIED_GEARING] = (
+        f"=IFERROR({first_col}{ROW_OPENING_BAL}/Calc_Capex!${last_cons_col}$17,0)"
+    )
+    ws[CELL_IMPLIED_GEARING].font = Font(color=COLOR_FORMULA, bold=True)
+    ws[CELL_IMPLIED_GEARING].number_format = "0.00%"
 
     _label(ws, ROW_DATE_HEADER, "Period End Date")
     _label(ws, ROW_QUARTER_INDEX, "Operating Quarter #")
     _label(ws, ROW_OPENING_BAL, "Opening Debt Balance ($)")
     _label(ws, ROW_INTEREST, "Interest ($)")
-    _label(ws, ROW_PRINCIPAL, "Principal ($) — level amortization, not yet DSCR-sculpted")
-    _label(ws, ROW_DEBT_SERVICE, "Total Debt Service ($)")
+    _label(ws, ROW_SCULPT_BASIS, "Sculpting Basis ($) = CFADS / Target DSCR (uncapped)")
+    _label(ws, ROW_DEBT_SERVICE, "Debt Service ($) — sculpted to Target DSCR")
+    _label(ws, ROW_PRINCIPAL, "Principal ($)")
     _label(ws, ROW_CLOSING_BAL, "Closing Debt Balance ($)")
-    _label(ws, ROW_DSCR, "DSCR (display only — CFADS / Debt Service)")
+    _label(ws, ROW_DSCR, "DSCR (achieved)")
 
     ws.cell(row=ROW_CHECK_HEADER, column=1, value="Checks").font = Font(bold=True)
     _label(ws, ROW_CHECK_FULLY_AMORTIZED, "Check: Closing Balance = 0 at Debt Tenor End")
+    _label(ws, ROW_CHECK_SCULPT_CONVERGED, "Check: Debt Sizing Converged (Loop 2)")
+    _label(ws, ROW_CHECK_MIN_DSCR, "Check: Min DSCR over tenor >= Target DSCR")
+    _label(ws, ROW_CHECK_PRINCIPAL_FLOORED, "Informational: # quarters principal floored at zero")
 
-    n_quarters = len(timeline.operations_quarters)
-    tenor_quarters = inputs.financing.debt_tenor_years * 4
-    quarterly_rate_expr = f"${INTEREST_RATE_CELL[0]}${INTEREST_RATE_CELL[1:]}/4"
-
-    # Level quarterly payment via PMT, computed once as a named formula reused each period while balance > 0
-    payment_formula = (
-        f"-PMT({quarterly_rate_expr},$B$9*4,Calc_Financing_Cons!"
-        f"{_last_construction_col(timeline)}25)"
-    )  # ROW_CLOSING_BAL in calc_financing_cons.py = 25
+    pmt_formula = (
+        f"-PMT({ABS_INTEREST_RATE}/4,{ABS_TENOR_YEARS}*4,"
+        f"Calc_Financing_Cons!{last_cons_col}25)"
+    )
 
     for i, period in enumerate(timeline.operations_quarters):
         col = col_letter(i)
+        prev = col_letter(i - 1) if i > 0 else None
 
         ws[f"{col}{ROW_DATE_HEADER}"] = period.end
         ws[f"{col}{ROW_DATE_HEADER}"].number_format = "mmm-yy"
         ws[f"{col}{ROW_QUARTER_INDEX}"] = i + 1
 
-        opening_cell = ws[f"{col}{ROW_OPENING_BAL}"]
         if i == 0:
-            opening_cell.value = f"=Calc_Financing_Cons!{_last_construction_col(timeline)}25"
-            opening_cell.font = Font(color=COLOR_LINK)
+            _link(ws, col, ROW_OPENING_BAL, f"Calc_Financing_Cons!{last_cons_col}25")
         else:
-            prev_col = col_letter(i - 1)
-            opening_cell.value = f"={prev_col}{ROW_CLOSING_BAL}"
-            opening_cell.font = Font(color=COLOR_FORMULA)
-        opening_cell.number_format = "#,##0"
+            _formula(ws, col, ROW_OPENING_BAL, f"={prev}{ROW_CLOSING_BAL}")
 
-        interest_cell = ws[f"{col}{ROW_INTEREST}"]
-        interest_cell.value = f"={col}{ROW_OPENING_BAL}*{quarterly_rate_expr}"
-        interest_cell.font = Font(color=COLOR_FORMULA)
-        interest_cell.number_format = "#,##0"
+        _formula(ws, col, ROW_INTEREST, f"={col}{ROW_OPENING_BAL}*{ABS_INTEREST_RATE}/4")
 
-        debt_service_cell = ws[f"{col}{ROW_DEBT_SERVICE}"]
         if i < tenor_quarters:
-            debt_service_cell.value = (
-                f"=MIN({payment_formula},{col}{ROW_OPENING_BAL}+{col}{ROW_INTEREST})"
+            _formula(ws, col, ROW_SCULPT_BASIS, f"=Calc_CFADS!{col}5/{ABS_TARGET_DSCR}")
+            # Actual service: never below interest (which would capitalise unpaid interest),
+            # never above what is still outstanding.
+            sculpted = (
+                f"MAX({col}{ROW_INTEREST},MIN({col}{ROW_SCULPT_BASIS},"
+                f"{col}{ROW_OPENING_BAL}+{col}{ROW_INTEREST}))"
             )
+            level = f"MIN({pmt_formula},{col}{ROW_OPENING_BAL}+{col}{ROW_INTEREST})"
+            _formula(ws, col, ROW_DEBT_SERVICE, f'=IF({ABS_SIZING_MODE}="DSCR Sculpted",{sculpted},{level})')
         else:
-            debt_service_cell.value = 0
-        debt_service_cell.font = Font(color=COLOR_FORMULA)
-        debt_service_cell.number_format = "#,##0"
+            _formula(ws, col, ROW_SCULPT_BASIS, "=0")
+            _formula(ws, col, ROW_DEBT_SERVICE, "=0")
 
-        principal_cell = ws[f"{col}{ROW_PRINCIPAL}"]
-        principal_cell.value = f"={col}{ROW_DEBT_SERVICE}-{col}{ROW_INTEREST}"
-        principal_cell.font = Font(color=COLOR_FORMULA)
-        principal_cell.number_format = "#,##0"
-
-        closing_cell = ws[f"{col}{ROW_CLOSING_BAL}"]
-        closing_cell.value = f"={col}{ROW_OPENING_BAL}-{col}{ROW_PRINCIPAL}"
-        closing_cell.font = Font(color=COLOR_FORMULA)
-        closing_cell.number_format = "#,##0"
+        _formula(ws, col, ROW_PRINCIPAL, f"={col}{ROW_DEBT_SERVICE}-{col}{ROW_INTEREST}")
+        _formula(ws, col, ROW_CLOSING_BAL, f"={col}{ROW_OPENING_BAL}-{col}{ROW_PRINCIPAL}")
 
         dscr_cell = ws[f"{col}{ROW_DSCR}"]
-        dscr_cell.value = (
-            f"=IF({col}{ROW_DEBT_SERVICE}=0,\"\",Calc_CFADS!{col}5/{col}{ROW_DEBT_SERVICE})"
-        )  # Calc_CFADS ROW_CFADS = 5, built next
+        dscr_cell.value = f'=IF({col}{ROW_DEBT_SERVICE}=0,"",Calc_CFADS!{col}5/{col}{ROW_DEBT_SERVICE})'
         dscr_cell.font = Font(color=COLOR_LINK)
         dscr_cell.number_format = "0.00x"
 
-    last_col = col_letter(n_quarters - 1)
-    tenor_end_col = col_letter(min(tenor_quarters, n_quarters) - 1)
+    _check(ws, last_col, ROW_CHECK_FULLY_AMORTIZED,
+           f"=IF(ABS({tenor_end_col}{ROW_CLOSING_BAL})<=Cover!$B$4,1,0)")
+    _check(ws, last_col, ROW_CHECK_SCULPT_CONVERGED,
+           f'=IF({ABS_SIZING_MODE}<>"DSCR Sculpted",1,'
+           f"IF(ABS($B$10)<=Cover!$B$6,1,0))")
+    _check(ws, last_col, ROW_CHECK_MIN_DSCR,
+           f"=IF(MIN({first_col}{ROW_DSCR}:{tenor_end_col}{ROW_DSCR})>={ABS_TARGET_DSCR}-0.001,1,0)")
+    _check(ws, last_col, ROW_CHECK_PRINCIPAL_FLOORED,
+           f"=SUMPRODUCT(--({first_col}{ROW_SCULPT_BASIS}:{tenor_end_col}{ROW_SCULPT_BASIS}"
+           f"<{first_col}{ROW_INTEREST}:{tenor_end_col}{ROW_INTEREST}))")
 
-    check_cell = ws[f"{last_col}{ROW_CHECK_FULLY_AMORTIZED}"]
-    check_cell.value = f"=IF(ROUND({tenor_end_col}{ROW_CLOSING_BAL},2)=0,1,0)"
-    check_cell.font = Font(color=COLOR_FORMULA)
-
+    _add_named_range(wb, "StagedDebtSize", "Calc_Financing_Ops", CELL_STAGED_DEBT_SIZE)
+    _add_named_range(wb, "SculptedDebtCapacity", "Calc_Financing_Ops", CELL_SCULPTED_CAPACITY)
+    _add_named_range(wb, "DebtSizeConvergenceGap", "Calc_Financing_Ops", CELL_CONVERGENCE_GAP)
+    _add_named_range(wb, "ImpliedGearing", "Calc_Financing_Ops", CELL_IMPLIED_GEARING)
     _add_named_range(wb, "FinOps_LastCol", "Calc_Financing_Ops", f"{last_col}1")
-    _add_named_range(wb, "FinOps_AmortizedCheck", "Calc_Financing_Ops", f"{last_col}{ROW_CHECK_FULLY_AMORTIZED}")
     _add_named_range(wb, "FinOps_TenorEndCol", "Calc_Financing_Ops", f"{tenor_end_col}1")
 
     ws.freeze_panes = ws.cell(row=ROW_DSCR + 1, column=FIRST_DATA_COL)
+    ws.column_dimensions["A"].width = 52
 
     return ws
 
 
-def _last_construction_col(timeline: Timeline) -> str:
-    return col_letter(len(timeline.construction_months) - 1)
-
-
 def _label(ws: Worksheet, row: int, label: str) -> None:
     ws.cell(row=row, column=1, value=label)
+
+
+def _link(ws: Worksheet, col: str, row: int, formula: str) -> None:
+    cell = ws[f"{col}{row}"]
+    cell.value = f"={formula}"
+    cell.font = Font(color=COLOR_LINK)
+    cell.number_format = "#,##0"
+
+
+def _formula(ws: Worksheet, col: str, row: int, formula: str) -> None:
+    cell = ws[f"{col}{row}"]
+    cell.value = formula
+    cell.font = Font(color=COLOR_FORMULA)
+    cell.number_format = "#,##0"
+
+
+def _check(ws: Worksheet, col: str, row: int, formula: str) -> None:
+    cell = ws[f"{col}{row}"]
+    cell.value = formula
+    cell.font = Font(color=COLOR_FORMULA)
 
 
 def _add_named_range(wb: Workbook, name: str, sheet: str, cell: str) -> None:

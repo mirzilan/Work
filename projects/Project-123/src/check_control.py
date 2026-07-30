@@ -21,8 +21,11 @@ CHECKS = [
     ("Calc_Financing_Cons", "Cum Debt + Cum Equity = Cum Funding Requirement", "Z31", "flag"),
     ("Calc_Financing_Cons", "Cumulative Debt Draw <= Debt Facility", "Z32", "flag"),
     ("Calc_Revenue_Opex", "Year 1 Revenue Sum = Annual Revenue Input", "F12", "flag"),
-    ("Calc_Tax", "Accumulated Depreciation <= Total Project Cost", "CD14", "flag"),
-    ("Calc_Financing_Ops", "Closing Balance = 0 at Debt Tenor End", "CD15", "flag"),
+    ("Calc_Tax", "Accumulated Depreciation <= Total Project Cost", "CD15", "flag"),
+    ("Calc_Financing_Ops", "Closing Balance = 0 at Debt Tenor End", "CD26", "flag"),
+    ("Calc_Financing_Ops", "Debt Sizing Converged (Loop 2)", "CD27", "flag"),
+    ("Calc_Financing_Ops", "Min DSCR over tenor >= Target DSCR", "CD28", "flag"),
+    ("Calc_Financing_Ops", "Quarters where CFADS/DSCR < interest", "CD29", "info"),
     ("Calc_CFADS", "Negative FCFE Quarter Count", "CD12", "info"),
     ("FS_Quarterly", "BS Balance Failures (Assets != Liab+Equity)", "CD38", "count"),
 ]

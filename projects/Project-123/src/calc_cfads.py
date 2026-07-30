@@ -50,12 +50,12 @@ def build_calc_cfads(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) ->
 
         # CFADS = EBITDA - Tax (both linked from Calc_Tax)
         cfads_cell = ws[f"{col}{ROW_CFADS}"]
-        cfads_cell.value = f"=Calc_Tax!{col}5-Calc_Tax!{col}8"  # ROW_EBITDA=5, ROW_TAX=8 in calc_tax.py
+        cfads_cell.value = f"=Calc_Tax!{col}5-Calc_Tax!{col}9"  # ROW_EBITDA=5, ROW_TAX=9 in calc_tax.py
         cfads_cell.font = Font(color=COLOR_LINK)
         cfads_cell.number_format = "#,##0"
 
         debt_service_cell = ws[f"{col}{ROW_DEBT_SERVICE}"]
-        debt_service_cell.value = f"=Calc_Financing_Ops!{col}8"  # ROW_DEBT_SERVICE=8 in calc_financing_ops.py
+        debt_service_cell.value = f"=Calc_Financing_Ops!{col}19"  # ROW_DEBT_SERVICE in calc_financing_ops.py
         debt_service_cell.font = Font(color=COLOR_LINK)
         debt_service_cell.number_format = "#,##0"
 

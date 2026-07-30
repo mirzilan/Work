@@ -16,13 +16,14 @@ ROW_DATE_HEADER = 2
 ROW_QUARTER_INDEX = 3
 
 ROW_EBITDA = 5          # linked from Calc_Revenue_Opex
-ROW_DEPRECIATION = 6    # straight-line on Total Capex over useful life, single vintage (Stage 1a)
-ROW_EBT = 7             # EBITDA - Depreciation (no interest deduction yet — Stage 1b wires tax shield)
-ROW_TAX = 8             # max(EBT,0) * tax rate — no loss carryforward yet
-ROW_NET_INCOME = 9
+ROW_DEPRECIATION = 6    # straight-line on Total Project Cost over useful life, single vintage
+ROW_INTEREST = 7        # linked from Calc_Financing_Ops — the tax shield
+ROW_EBT = 8             # EBITDA - Depreciation - Interest
+ROW_TAX = 9             # max(EBT,0) * tax rate — no loss carryforward yet
+ROW_NET_INCOME = 10
 
-ROW_CHECK_HEADER = 13
-ROW_CHECK_ACCUM_DEPR = 14
+ROW_CHECK_HEADER = 14
+ROW_CHECK_ACCUM_DEPR = 15
 
 TAX_RATE_CELL = "B4"
 USEFUL_LIFE_YEARS_CELL = "B9"
@@ -48,7 +49,8 @@ def build_calc_tax(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) -> W
     _label(ws, ROW_QUARTER_INDEX, "Operating Quarter #")
     _label(ws, ROW_EBITDA, "EBITDA ($) — linked from Calc_Revenue_Opex")
     _label(ws, ROW_DEPRECIATION, "Depreciation ($) — straight-line, single vintage")
-    _label(ws, ROW_EBT, "EBT ($) — pre-interest, Stage 1b adds interest deduction")
+    _label(ws, ROW_INTEREST, "Interest Expense ($) — linked from Calc_Financing_Ops (tax shield)")
+    _label(ws, ROW_EBT, "EBT ($) = EBITDA - Depreciation - Interest")
     _label(ws, ROW_TAX, "Tax ($) — no loss carryforward yet")
     _label(ws, ROW_NET_INCOME, "Net Income ($)")
 
@@ -85,8 +87,13 @@ def build_calc_tax(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) -> W
         depr_cell.font = Font(color=COLOR_FORMULA)
         depr_cell.number_format = "#,##0"
 
+        interest_cell = ws[f"{col}{ROW_INTEREST}"]
+        interest_cell.value = f"=Calc_Financing_Ops!{col}17"  # ROW_INTEREST in calc_financing_ops.py
+        interest_cell.font = Font(color=COLOR_LINK)
+        interest_cell.number_format = "#,##0"
+
         ebt_cell = ws[f"{col}{ROW_EBT}"]
-        ebt_cell.value = f"={col}{ROW_EBITDA}-{col}{ROW_DEPRECIATION}"
+        ebt_cell.value = f"={col}{ROW_EBITDA}-{col}{ROW_DEPRECIATION}-{col}{ROW_INTEREST}"
         ebt_cell.font = Font(color=COLOR_FORMULA)
         ebt_cell.number_format = "#,##0"
 

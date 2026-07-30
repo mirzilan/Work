@@ -12,8 +12,10 @@ CELL_DEBT_SIZING_TOLERANCE = "B6"
 CELL_MASTER_CHECK_LINK = "B9"
 
 CELL_DRAWDOWN_METHOD = "B14"
+CELL_DEBT_SIZING_MODE = "B17"
 
 DRAWDOWN_METHODS = ["Debt First", "Equity First", "Pari Passu"]
+DEBT_SIZING_MODES = ["Fixed Gearing", "DSCR Sculpted"]
 
 
 def build_cover(wb: Workbook) -> Worksheet:
@@ -71,7 +73,30 @@ def build_cover(wb: Workbook) -> Worksheet:
     )
     ws["A15"].font = Font(italic=True, size=9)
 
+    ws["A17"] = "Debt Sizing Mode"
+    ws["A17"].font = Font(bold=True)
+    sizing_cell = ws[CELL_DEBT_SIZING_MODE]
+    sizing_cell.value = DEBT_SIZING_MODES[1]
+    sizing_cell.font = Font(color=COLOR_INPUT)
+
+    sizing_validation = DataValidation(
+        type="list",
+        formula1=f'"{",".join(DEBT_SIZING_MODES)}"',
+        allow_blank=False,
+        showDropDown=False,
+    )
+    ws.add_data_validation(sizing_validation)
+    sizing_validation.add(sizing_cell)
+
+    ws["A18"] = (
+        "Fixed Gearing: debt = gearing x Total Project Cost, level (PMT) amortisation. "
+        "DSCR Sculpted: repayment locked to Target DSCR, debt size solved so the balance "
+        "amortises to zero exactly at tenor end."
+    )
+    ws["A18"].font = Font(italic=True, size=9)
+
     _add_named_range(wb, "Cover_CircTolerance", "Cover", CELL_CIRC_TOLERANCE)
+    _add_named_range(wb, "Cover_DebtSizingMode", "Cover", CELL_DEBT_SIZING_MODE)
     _add_named_range(wb, "Cover_MaxIterations", "Cover", CELL_MAX_ITERATIONS)
     _add_named_range(wb, "Cover_DebtSizingTolerance", "Cover", CELL_DEBT_SIZING_TOLERANCE)
     _add_named_range(wb, "Cover_DrawdownMethod", "Cover", CELL_DRAWDOWN_METHOD)

@@ -82,8 +82,12 @@ def build_calc_financing_cons(wb: Workbook, timeline: Timeline, inputs: ProjectI
     ws[CELL_TOTAL_PROJECT_COST].font = Font(color=COLOR_FORMULA)
     ws[CELL_TOTAL_PROJECT_COST].number_format = "#,##0"
 
-    ws["A8"] = "Debt Facility ($) = Gearing x Total Project Cost"
-    ws[CELL_DEBT_FACILITY] = f"={CELL_GEARING}*{CELL_TOTAL_PROJECT_COST}"
+    # Under DSCR Sculpted the facility is whatever Loop 2 has solved the debt size to be;
+    # under Fixed Gearing it is simply the gearing applied to Total Project Cost.
+    ws["A8"] = "Debt Facility ($) — per Cover Debt Sizing Mode"
+    ws[CELL_DEBT_FACILITY] = (
+        f'=IF(Cover!$B$17="DSCR Sculpted",Calc_Financing_Ops!$B$7,{ABS_GEARING}*$B$7)'
+    )
     ws[CELL_DEBT_FACILITY].font = Font(color=COLOR_FORMULA)
     ws[CELL_DEBT_FACILITY].number_format = "#,##0"
 

@@ -37,9 +37,9 @@ Reference document for the bankable project finance model engine. Check every bu
 | 🟨 Calc | `Calc_Capex` | Monthly | ✅ built (uses-only, IDC linked) | Draws by category, cumulative spend, IDC + TPC; funding rows link from Financing_Cons |
 | 🟨 Calc | `Calc_Financing_Cons` | Monthly | ✅ built (Loop 1 live) | Owns all funding: drawdown method, debt/equity draws, IDC solve |
 | 🟨 Calc | `Calc_Revenue_Opex` | Quarterly | ✅ built (flat dummy) | Revenue, opex, other income; escalation-driven in 1c |
-| 🟨 Calc | `Calc_Tax` | Quarterly | ✅ built (single vintage, pre-interest) | Depreciation, loss carryforward, tax; interest deduction (1b), maintenance capex vintage (1c) |
+| 🟨 Calc | `Calc_Tax` | Quarterly | ✅ built (single vintage, tax shield live) | Depreciation, tax, interest deduction; maintenance capex vintage (1c) |
 | 🟨 Calc | `Calc_CFADS` | Quarterly | ✅ built (no reserves) | Cash waterfall to FCFE; DSRA/MRA (1c) |
-| 🟨 Calc | `Calc_Financing_Ops` | Quarterly | ✅ built (level amortization) | DSCR-**locked** sculpted repayment (1b, replaces level amort), LLCR/PLCR (1c) |
+| 🟨 Calc | `Calc_Financing_Ops` | Quarterly | ✅ built (Loop 2 live) | DSCR-locked sculpting + closed-form debt sizing; LLCR/PLCR (1c) |
 | 🟩 Output | `FS_Quarterly` | Quarterly | ✅ built | 3-statements, FCFF/FCFE built once, PIRR/EIRR via `XIRR` |
 | 🟩 Output | `FS_Annual` | Annual | ✅ built (ops + construction) | Rolled up from Quarterly; separate construction-period annual block |
 | 🟩 Output | `Valuation_SellDown` | Annual | ⏳ Stage 1d | Standalone, read-only downstream of `FS_Annual`. Per exit-year: implied sale price (`XNPV`), seller's realized EIRR (`XIRR`), buyer's implied PIRR |
@@ -55,16 +55,22 @@ Reference document for the bankable project finance model engine. Check every bu
 | Loop | What's circular | Breaker |
 |---|---|---|
 | **Loop 1 — Construction** | IDC ↔ Debt Balance ↔ Total Project Cost | VBA copy-paste convergence (single staged cell) |
-| **Loop 2 — Operations** | Debt sculpting ↔ CFADS ↔ Debt Balance ↔ Interest (tax-shield) | VBA copy-paste convergence, nested inside a single-variable root-find |
+| **Loop 2 — Operations** | Debt size ↔ Interest ↔ Tax ↔ CFADS ↔ Capacity (tax shield) | VBA copy-paste convergence (single staged cell) — no root-find, see below |
 
-**Debt sculpting — the corrected method (not bisection-on-two-constraints):**
+**Debt sculpting — closed form, no search at all:**
 ```
-Debt Service_t = CFADS_t / Target DSCR      (locks DSCR exactly, no search needed)
+Debt Service_t = CFADS_t / Target DSCR      (locks DSCR exactly)
 Interest_t     = Opening Balance_t × rate
 Principal_t    = Debt Service_t − Interest_t
 Closing_t      = Opening_t − Principal_t
 ```
-Only **one** unknown needs solving: starting debt size `D` such that closing balance = 0 exactly at tenor end. Single bisection/secant search, not a joint two-constraint search.
+Because DSCR is locked, the balance recursion is linear — `Balance(t+1) = Balance(t)×(1+r) − CFADS(t)/DSCR`. Setting `Balance(T) = 0` and solving gives a **closed form**: the supportable debt is just the PV of the sculpted service stream at the debt rate.
+
+$$D = \sum_{t=1}^{T} \frac{CFADS_t / DSCR}{(1+r)^t} = \text{NPV}(r, \text{service})$$
+
+So there is **no bisection** (an earlier draft of this blueprint specified one — superseded). The only iteration left is the tax-shield fixed point, which the staged cell breaks. Converges in ~7 passes.
+
+⚠️ **The PV must discount the *uncapped* basis.** The displayed service row is floored at interest and capped at the outstanding balance; discounting *that* makes the fixed point degenerate — once the balance hits zero the service drops to zero, so the PV simply reproduces whatever balance it was given and any starting debt size looks converged. Keep a separate uncapped "Sculpting Basis" row for the PV.
 
 ### DSRA / MRA
 - Waterfall: `Revenue − Opex − Tax = CFADS − Debt Service − DSRA funding/(release) − MRA funding/(release) = FCFE`
@@ -118,7 +124,7 @@ Only **one** unknown needs solving: starting debt size `D` such that closing bal
 |---|---|---|
 | **1a — Plumbing proof** | Single scenario, flat dummy revenue, fixed-ratio debt, zero circularity | ✅ **complete** (tasks #1–10) |
 | **Interim — Input centralization** | `Cover` + `Assumptions_Model`, rewire all `Calc_*` hardcodes to links | ✅ **complete** (task #18) |
-| **1b — Circularity** | Loop 1 + drawdown method selector + construction-period `FS_Annual` (#11 ✅) → Loop 2 + tax shield/interest deduction (#12) → dirty-flag check (#13) | ⏳ in progress — #11 done, #12 next |
+| **1b — Circularity** | Loop 1 + drawdown selector + construction `FS_Annual` (#11 ✅) → Loop 2 + tax shield (#12 ✅) → dirty-flag check (#13) | ⏳ in progress — #13 next |
 | **1c — Scale out** | 10 scenarios + escalation library (#14) → DSRA/MRA + LC option + LLCR/PLCR + multi-vintage maintenance capex (#15) → control panel + goal-seek (#16) | pending |
 | **1d — Sell-down** | `Valuation_SellDown` + `Dashboard` (#17) | pending |
 
@@ -131,7 +137,8 @@ Only **one** unknown needs solving: starting debt size `D` such that closing bal
 - Don't put periodic scenario inputs with time-down-rows — breaks the universal time-across-columns rule
 - Don't rebuild FCFF/FCFE independently on `FS_Quarterly` and `FS_Annual` — build once, roll up
 - Don't recalculate PIRR per exit year in `Valuation_SellDown` — it's a whole-of-project unlevered number, doesn't vary by holding period
-- Don't bisect on two joint constraints (DSCR floor + repayment) for debt sculpting — lock DSCR via formula, bisect only on debt size
+- Don't bisect for debt sculpting at all — lock DSCR via formula and the debt size falls out as a PV in closed form
+- Don't discount the capped service row when computing sculpted capacity — use the uncapped basis, or the fixed point goes degenerate and silently "converges" at whatever it started from
 - Don't build scenario conditional-formatting highlighting now — explicitly Phase 2
 - Don't skip the feasibility pre-check in multi-scenario goal-seek — burns iterations discovering what one bound-check would show instantly
 - Don't trust VBA-solved values without the dirty-flag check — stale copy-pasted numbers look identical to fresh ones
