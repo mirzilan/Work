@@ -34,10 +34,12 @@ def build_workbook(inputs: ProjectInputs, timeline: Timeline, output_path: str) 
     from calc_capex import build_calc_capex
     from calc_financing_cons import build_calc_financing_cons
     from calc_revenue_opex import build_calc_revenue_opex
+    from calc_tax import build_calc_tax
 
     wb = new_workbook()
     build_calc_capex(wb, timeline, inputs)
     build_calc_financing_cons(wb, timeline, inputs)
     build_calc_revenue_opex(wb, timeline, inputs)
+    build_calc_tax(wb, timeline, inputs)
     wb.save(output_path)
     return wb
