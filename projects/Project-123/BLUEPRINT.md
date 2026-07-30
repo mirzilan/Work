@@ -29,7 +29,7 @@ Reference document for the bankable project finance model engine. Check every bu
 
 | Color | Sheet | Resolution | Status | Purpose |
 |---|---|---|---|---|
-| 🟦 Input | `Cover` | — | ✅ built (Stage 1b will add VBA buttons) | Circ tolerances, scenario selector (1c), master check light, drawdown/DSRA method selectors |
+| 🟦 Input | `Cover` | — | ✅ built | Tolerances, drawdown + debt-sizing selectors, solve-freshness block, master check light; scenario selector (1c) |
 | 🟦 Input | `Assumptions_Model` | — | ✅ built (single-scenario) | High-level periods, FX, escalation-adjacent settings, all centralized inputs |
 | 🟦 Input | `Assumptions_Constant` | — | ⏳ Stage 1c | Scenarios **across columns**, 10 placeholders, Active column via `INDEX`/`MATCH` |
 | 🟦 Input | `Assumptions_Periodic_Capex` | Monthly | ⏳ Stage 1c | Scenario **row-blocks**, capex phasing; escalation library embedded at bottom (monthly index) |
@@ -44,7 +44,7 @@ Reference document for the bankable project finance model engine. Check every bu
 | 🟩 Output | `FS_Annual` | Annual | ✅ built (ops + construction) | Rolled up from Quarterly; separate construction-period annual block |
 | 🟩 Output | `Valuation_SellDown` | Annual | ⏳ Stage 1d | Standalone, read-only downstream of `FS_Annual`. Per exit-year: implied sale price (`XNPV`), seller's realized EIRR (`XIRR`), buyer's implied PIRR |
 | 🟩 Output | `Dashboard` | — | ⏳ Stage 1d | Charts + Sources & Uses table (formula-linked, not chart-derived) |
-| 🟥 Check | `Check_Control` | — | ✅ built (8 checks) | Master aggregator, direct-cell-ref pulls (no `INDIRECT`), `MODEL OK`/`ERRORS FOUND` |
+| 🟥 Check | `Check_Control` | — | ✅ built (15 checks) | Master aggregator, direct-cell-ref pulls (no `INDIRECT`), `MODEL OK`/`ERRORS FOUND` |
 
 ---
 
@@ -103,7 +103,7 @@ So there is **no bisection** (an earlier draft of this blueprint specified one �
 ### Checks architecture
 - Every calc/output sheet: local Checks block, consistent position, plain pass/fail or count-based
 - `Check_Control`: pulls every check via **direct cell reference**, master flag via `COUNTIF`
-- **Dirty-flag (Stage 1b, task #13):** checksum of key inputs vs. last-solve snapshot — visible warning if assumptions changed since the last VBA solve, so stale copy-pasted values are never silently trusted
+- **Dirty-flag (✅ built):** `Cover` snapshots all 13 tracked inputs at solve time and compares live vs. stored. Status reads `SOLVED - current` or `RE-RUN SOLVE - assumptions changed`, and the table names *which* input moved. Recorded automatically on every successful solve; cleared by the reset macros. Per-input tracking beats a single hashed checksum here: same protection, but it tells you what changed, and it sidesteps float-precision games in a combined hash
 
 ### VBA — build process constraint
 - `openpyxl` **cannot author VBA** — no COM/Excel in this environment
@@ -124,7 +124,7 @@ So there is **no bisection** (an earlier draft of this blueprint specified one �
 |---|---|---|
 | **1a — Plumbing proof** | Single scenario, flat dummy revenue, fixed-ratio debt, zero circularity | ✅ **complete** (tasks #1–10) |
 | **Interim — Input centralization** | `Cover` + `Assumptions_Model`, rewire all `Calc_*` hardcodes to links | ✅ **complete** (task #18) |
-| **1b — Circularity** | Loop 1 + drawdown selector + construction `FS_Annual` (#11 ✅) → Loop 2 + tax shield (#12 ✅) → dirty-flag check (#13) | ⏳ in progress — #13 next |
+| **1b — Circularity** | Loop 1 + drawdown selector + construction `FS_Annual` (#11 ✅) → Loop 2 + tax shield (#12 ✅) → dirty-flag check (#13 ✅) | ✅ **complete** |
 | **1c — Scale out** | 10 scenarios + escalation library (#14) → DSRA/MRA + LC option + LLCR/PLCR + multi-vintage maintenance capex (#15) → control panel + goal-seek (#16) | pending |
 | **1d — Sell-down** | `Valuation_SellDown` + `Dashboard` (#17) | pending |
 

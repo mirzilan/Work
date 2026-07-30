@@ -10,10 +10,11 @@ them — you only repeat this if the macro code itself changes.
 2. **File → Save As → Excel Macro-Enabled Workbook (`.xlsm`)**. VBA cannot live in `.xlsx`.
 3. `Alt + F11` to open the VBA editor.
 4. **Insert → Module**. A blank `Module1` appears.
-5. Import **both** `.bas` files from this folder — `mod_Loop1_IDC.bas` and
-   `mod_Loop2_DebtSizing.bas`. Easiest route: **File → Import File…** and select each one
-   (this keeps the module names). Otherwise create a module per file and paste everything
-   **below** the `Attribute VB_Name` line.
+5. Import **all three** `.bas` files from this folder — `mod_Loop1_IDC.bas`,
+   `mod_Loop2_DebtSizing.bas` and `mod_SolveFreshness.bas`. Easiest route:
+   **File → Import File…** and select each one (this keeps the module names). Otherwise
+   create a module per file and paste everything **below** the `Attribute VB_Name` line.
+   All three are required — the solve macros call into the freshness module.
 6. Close the VBA editor.
 7. **Developer tab → Insert → Form Control Button** (the top-left one, *not* ActiveX).
    Draw it on the `Cover` sheet near row 11.
@@ -27,6 +28,7 @@ them — you only repeat this if the macro code itself changes.
 | `SolveConstructionIDC` | Solve Construction IDC |
 | `SolveDebtSculpting` | Solve Debt Sculpting |
 | `ResetAllStagedValues` | Reset |
+| `InvalidateSolveSnapshot` | (optional) Invalidate Solve |
 
 11. **Save** (keep `.xlsm`).
 
@@ -57,6 +59,11 @@ These are created by the Python build — do not rename them.
 | `Cover_DebtSizingTolerance` | `Cover!$B$6` | Loop 2 convergence tolerance ($) |
 | `Cover_DrawdownMethod` | `Cover!$B$14` | Debt First / Equity First / Pari Passu |
 | `Cover_DebtSizingMode` | `Cover!$B$17` | Fixed Gearing / DSCR Sculpted |
+| `SnapshotLive` | `Cover!$B$26:$B$38` | Live value of every tracked input |
+| `SnapshotStored` | `Cover!$C$26:$C$38` | Those values as at the last solve |
+| `LastSolvedStamp` | `Cover!$B$22` | Timestamp written on each successful solve |
+| `SolveStatus` | `Cover!$B$23` | `SOLVED - current` / `RE-RUN SOLVE …` |
+| `SolveFreshnessFlag` | `Cover!$D$40` | 1/0 flag `Check_Control` pulls |
 
 ## What "solved" looks like
 
@@ -80,9 +87,21 @@ In **Fixed Gearing** mode the schedule reverts to level PMT amortisation and the
 convergence check is skipped, but `SculptedDebtCapacity` still reports what the project
 *could* support — useful as a sizing sense-check against the fixed assumption.
 
-## Important — stale values
+## Stale values — the freshness guard
 
-The staged value is a *number*, not a formula. If you change an assumption and do not
-re-run the solve, the model will show stale figures that look perfectly valid. Task #13
-adds a dirty-flag check that detects this and warns on `Cover`. Until then: **re-run the
-solve after every assumption change.**
+The staged cells hold *numbers*, not formulas. Change an assumption without re-solving and
+every downstream figure still calculates happily off the old staged values: the model looks
+right and is wrong, with nothing on screen to say so.
+
+`Cover` guards against this. It snapshots every input a solve depends on, and the
+**Solve Status** cell reads either:
+
+- `SOLVED - current` — nothing has moved since the last solve
+- `RE-RUN SOLVE - assumptions changed` — at least one input has drifted
+
+The table beneath it names *which* input moved (Match = 0), so you are not left guessing.
+`Check_Control` pulls the same flag, so a stale model also trips the master status.
+
+A freshly generated workbook reports `RE-RUN SOLVE` by design — nothing has been solved
+yet. The snapshot is recorded automatically on every successful solve; the reset macros
+clear it so a reset model cannot keep claiming to be solved.

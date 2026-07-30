@@ -39,6 +39,7 @@ Public Sub SolveConstructionIDC()
 
         If Abs(newCalc - prevCalc) <= tolerance Then
             Application.Calculate
+            RecordSolveSnapshot
             MsgBox "Construction IDC converged in " & i & " iteration(s)." & vbCrLf & _
                    "IDC: " & Format(Range("CalculatedIDC").Value, "#,##0") & vbCrLf & _
                    "Residual gap: " & Format(Range("IDCConvergenceGap").Value, "#,##0.00"), _
@@ -69,7 +70,9 @@ End Sub
 ' on a stale value that happens to look converged.
 Public Sub ResetConstructionIDC()
     Range("StagedIDC").Value = 0
+    Range("SnapshotStored").ClearContents
+    Range("LastSolvedStamp").Value = "(never)"
     Application.Calculate
-    MsgBox "Staged IDC reset to zero. Run Solve Construction IDC to re-solve.", _
-           vbInformation, "Loop 1 -- Reset"
+    MsgBox "Staged IDC reset to zero, solve snapshot cleared." & vbCrLf & _
+           "Run Solve Construction IDC to re-solve.", vbInformation, "Loop 1 -- Reset"
 End Sub

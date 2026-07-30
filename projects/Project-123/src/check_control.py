@@ -14,6 +14,7 @@ ROW_FIRST_CHECK = 6
 #   check_type "count" — cell is a failure count, 0 = pass -> OK/FAIL
 #   check_type "info"  — cell is a count that's informational only -> OK/REVIEW, never FAIL
 CHECKS = [
+    ("Cover", "Solve is current (assumptions unchanged since last solve)", "D40", "flag"),
     ("Calc_Capex", "Cum Debt + Cum Equity = Cum Capex + Cum IDC", "Z21", "flag"),
     ("Calc_Capex", "Cumulative Capex = Total Capex Input", "Z22", "flag"),
     ("Calc_Financing_Cons", "Closing Balance = Cumulative Debt Draws", "Z29", "flag"),

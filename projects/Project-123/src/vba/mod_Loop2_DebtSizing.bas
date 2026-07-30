@@ -51,6 +51,7 @@ Public Sub SolveAllCurrentScenario()
         debtGap = Abs(Range("DebtSizeConvergenceGap").Value)
 
         If idcGap <= tolerance And debtGap <= Range("Cover_DebtSizingTolerance").Value Then
+            RecordSolveSnapshot
             MsgBox "Solved in " & i & " outer pass(es)." & vbCrLf & vbCrLf & _
                    "IDC: " & Format(Range("CalculatedIDC").Value, "#,##0") & _
                    "  (gap " & Format(idcGap, "#,##0.00") & ")" & vbCrLf & _
@@ -107,6 +108,7 @@ Private Function ConvergeDebtSize(ByVal showResult As Boolean) As Boolean
             Application.Calculate
             ConvergeDebtSize = True
             If showResult Then
+                RecordSolveSnapshot
                 MsgBox "Debt sizing converged in " & i & " iteration(s)." & vbCrLf & vbCrLf & _
                        "Sculpted debt size: " & Format(Range("StagedDebtSize").Value, "#,##0") & vbCrLf & _
                        "Implied gearing: " & Format(Range("ImpliedGearing").Value, "0.00%") & vbCrLf & _
@@ -151,7 +153,10 @@ End Sub
 Public Sub ResetAllStagedValues()
     Range("StagedIDC").Value = 0
     Range("StagedDebtSize").Value = Range("TotalCapex").Value * 0.7
+    ' The model is no longer solved, so the freshness snapshot must not keep claiming it is.
+    Range("SnapshotStored").ClearContents
+    Range("LastSolvedStamp").Value = "(never)"
     Application.Calculate
-    MsgBox "Staged IDC and Staged Debt Size reset. Run Solve All to re-solve.", _
-           vbInformation, "Reset"
+    MsgBox "Staged IDC and Staged Debt Size reset, solve snapshot cleared." & vbCrLf & _
+           "Run Solve All to re-solve.", vbInformation, "Reset"
 End Sub

@@ -44,7 +44,7 @@ def build_workbook(inputs: ProjectInputs, timeline: Timeline, output_path: str) 
     from check_control import build_check_control
 
     wb = new_workbook()
-    build_cover(wb)
+    build_cover(wb, len(timeline.construction_months))
     build_assumptions_model(wb, timeline, inputs)
     build_calc_capex(wb, timeline, inputs)
     build_calc_financing_cons(wb, timeline, inputs)
