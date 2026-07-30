@@ -14,11 +14,14 @@ ROW_FIRST_CHECK = 6
 #   check_type "count" — cell is a failure count, 0 = pass -> OK/FAIL
 #   check_type "info"  — cell is a count that's informational only -> OK/REVIEW, never FAIL
 CHECKS = [
-    ("Calc_Capex", "Debt + Equity Draw = Capex Draw", "Z21", "flag"),
+    ("Calc_Capex", "Cum Debt + Cum Equity = Cum Capex + Cum IDC", "Z21", "flag"),
     ("Calc_Capex", "Cumulative Capex = Total Capex Input", "Z22", "flag"),
-    ("Calc_Financing_Cons", "Closing Balance = Cumulative Debt Draws", "Z13", "flag"),
+    ("Calc_Financing_Cons", "Closing Balance = Cumulative Debt Draws", "Z29", "flag"),
+    ("Calc_Financing_Cons", "IDC Converged (Loop 1)", "Z30", "flag"),
+    ("Calc_Financing_Cons", "Cum Debt + Cum Equity = Cum Funding Requirement", "Z31", "flag"),
+    ("Calc_Financing_Cons", "Cumulative Debt Draw <= Debt Facility", "Z32", "flag"),
     ("Calc_Revenue_Opex", "Year 1 Revenue Sum = Annual Revenue Input", "F12", "flag"),
-    ("Calc_Tax", "Accumulated Depreciation <= Total Capex", "CD14", "flag"),
+    ("Calc_Tax", "Accumulated Depreciation <= Total Project Cost", "CD14", "flag"),
     ("Calc_Financing_Ops", "Closing Balance = 0 at Debt Tenor End", "CD15", "flag"),
     ("Calc_CFADS", "Negative FCFE Quarter Count", "CD12", "info"),
     ("FS_Quarterly", "BS Balance Failures (Assets != Liab+Equity)", "CD38", "count"),

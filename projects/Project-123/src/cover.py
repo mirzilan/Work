@@ -1,4 +1,5 @@
 from openpyxl.styles import Font
+from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.workbook import Workbook
 
@@ -9,6 +10,10 @@ CELL_MAX_ITERATIONS = "B5"
 CELL_DEBT_SIZING_TOLERANCE = "B6"
 
 CELL_MASTER_CHECK_LINK = "B9"
+
+CELL_DRAWDOWN_METHOD = "B14"
+
+DRAWDOWN_METHODS = ["Debt First", "Equity First", "Pari Passu"]
 
 
 def build_cover(wb: Workbook) -> Worksheet:
@@ -44,9 +49,32 @@ def build_cover(wb: Workbook) -> Worksheet:
     ws["A12"] = "Placeholder rows only — Form Control buttons + macro assignment are a manual, one-time step (see VBA hand-off docs)."
     ws["A12"].font = Font(italic=True, size=9)
 
+    ws["A14"] = "Construction Drawdown Method"
+    ws["A14"].font = Font(bold=True)
+    method_cell = ws[CELL_DRAWDOWN_METHOD]
+    method_cell.value = DRAWDOWN_METHODS[2]
+    method_cell.font = Font(color=COLOR_INPUT)
+
+    validation = DataValidation(
+        type="list",
+        formula1=f'"{",".join(DRAWDOWN_METHODS)}"',
+        allow_blank=False,
+        showDropDown=False,
+    )
+    ws.add_data_validation(validation)
+    validation.add(method_cell)
+
+    ws["A15"] = (
+        "Debt First: draw debt until facility exhausted, then equity. "
+        "Equity First: draw equity until commitment exhausted, then debt. "
+        "Pari Passu: draw both proportionally each month."
+    )
+    ws["A15"].font = Font(italic=True, size=9)
+
     _add_named_range(wb, "Cover_CircTolerance", "Cover", CELL_CIRC_TOLERANCE)
     _add_named_range(wb, "Cover_MaxIterations", "Cover", CELL_MAX_ITERATIONS)
     _add_named_range(wb, "Cover_DebtSizingTolerance", "Cover", CELL_DEBT_SIZING_TOLERANCE)
+    _add_named_range(wb, "Cover_DrawdownMethod", "Cover", CELL_DRAWDOWN_METHOD)
 
     ws.column_dimensions["A"].width = 45
 

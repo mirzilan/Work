@@ -32,6 +32,16 @@ ROW_PIRR_VALUE = 19
 ROW_EIRR_LABEL = 20
 ROW_EIRR_VALUE = 21
 
+# Construction-period annual summary (monthly source data rolled to project years)
+ROW_CONS_HEADER = 24
+ROW_CONS_YEAR_LABEL = 25
+ROW_CONS_CAPEX = 26
+ROW_CONS_IDC = 27
+ROW_CONS_DEBT_DRAWN = 28
+ROW_CONS_EQUITY_DRAWN = 29
+ROW_CONS_CUM_TPC = 30
+ROW_CONS_CLOSING_DEBT = 31
+
 
 def _annual_col_letter(i: int) -> str:
     return openpyxl.utils.get_column_letter(FIRST_DATA_COL + i)
@@ -119,10 +129,55 @@ def build_fs_annual(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) -> 
     eirr_cell.font = Font(color=COLOR_FORMULA, bold=True)
     eirr_cell.number_format = "0.00%"
 
+    _build_construction_section(ws, timeline)
+
     _add_named_range(wb, "FSA_PIRR", "FS_Annual", "A19")
     _add_named_range(wb, "FSA_EIRR", "FS_Annual", "A21")
 
     return ws
+
+
+def _build_construction_section(ws: Worksheet, timeline: Timeline) -> None:
+    """Construction years reported separately: the source data is monthly (not quarterly),
+    and during construction there is no P&L activity — only capitalised spend building the
+    balance sheet, which is what lenders look at pre-COD."""
+    ws.cell(row=ROW_CONS_HEADER, column=1, value="Construction Period (annual rollup of monthly data)")
+    ws.cell(row=ROW_CONS_HEADER, column=1).font = Font(bold=True)
+
+    ws.cell(row=ROW_CONS_YEAR_LABEL, column=1, value="Construction Year")
+    ws.cell(row=ROW_CONS_CAPEX, column=1, value="Capex Incurred ($) — annual sum")
+    ws.cell(row=ROW_CONS_IDC, column=1, value="IDC Capitalised ($) — annual sum")
+    ws.cell(row=ROW_CONS_DEBT_DRAWN, column=1, value="Debt Drawn ($) — annual sum")
+    ws.cell(row=ROW_CONS_EQUITY_DRAWN, column=1, value="Equity Drawn ($) — annual sum")
+    ws.cell(row=ROW_CONS_CUM_TPC, column=1, value="Cumulative Total Project Cost ($) — year-end")
+    ws.cell(row=ROW_CONS_CLOSING_DEBT, column=1, value="Closing Debt Balance ($) — year-end")
+
+    buckets: dict = {}
+    for idx, period in enumerate(timeline.construction_months):
+        buckets.setdefault(period.year_index, []).append(idx)
+
+    for year_num, (_, month_indices) in enumerate(sorted(buckets.items())):
+        col = _annual_col_letter(year_num)
+        first_m = openpyxl.utils.get_column_letter(FIRST_DATA_COL + month_indices[0])
+        last_m = openpyxl.utils.get_column_letter(FIRST_DATA_COL + month_indices[-1])
+
+        ws[f"{col}{ROW_CONS_YEAR_LABEL}"] = f"C-Yr {year_num + 1}"
+
+        for row, (sheet, src_row, is_sum) in {
+            ROW_CONS_CAPEX: ("Calc_Capex", 6, True),
+            ROW_CONS_IDC: ("Calc_Financing_Cons", 18, True),
+            ROW_CONS_DEBT_DRAWN: ("Calc_Financing_Cons", 21, True),
+            ROW_CONS_EQUITY_DRAWN: ("Calc_Financing_Cons", 22, True),
+            ROW_CONS_CUM_TPC: ("Calc_Capex", 17, False),
+            ROW_CONS_CLOSING_DEBT: ("Calc_Financing_Cons", 25, False),
+        }.items():
+            cell = ws[f"{col}{row}"]
+            if is_sum:
+                cell.value = f"=SUM({sheet}!{first_m}{src_row}:{last_m}{src_row})"
+            else:
+                cell.value = f"={sheet}!{last_m}{src_row}"
+            cell.font = Font(color=COLOR_LINK)
+            cell.number_format = "#,##0"
 
 
 def _build_xirr_block(ws: Worksheet, wb: Workbook, timeline: Timeline) -> None:

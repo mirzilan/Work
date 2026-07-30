@@ -56,8 +56,12 @@ def build_calc_tax(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) -> W
     _label(ws, ROW_CHECK_ACCUM_DEPR, "Check: Accumulated Depreciation <= Total Capex")
 
     n_quarters = len(timeline.operations_quarters)
-    # Quarterly depreciation = Total Capex / (useful life years * 4), flat straight-line
-    quarterly_depr_expr = "Calc_Capex!$B$4/($B$9*4)"
+    last_cons_col = col_letter(len(timeline.construction_months) - 1)
+    # Depreciable base is Total Project Cost (capex + capitalised IDC), not capex alone —
+    # PP&E on the balance sheet opens at TPC, so depreciating capex only would strand the
+    # IDC portion undepreciated for the life of the asset.
+    tpc_ref = f"Calc_Capex!${last_cons_col}$17"
+    quarterly_depr_expr = f"{tpc_ref}/($B$9*4)"
 
     for i, period in enumerate(timeline.operations_quarters):
         col = col_letter(i)
@@ -100,7 +104,9 @@ def build_calc_tax(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) -> W
     first_col = col_letter(0)
 
     check_cell = ws[f"{last_col}{ROW_CHECK_ACCUM_DEPR}"]
-    check_cell.value = f"=IF(SUM({first_col}{ROW_DEPRECIATION}:{last_col}{ROW_DEPRECIATION})<=Calc_Capex!$B$4+0.01,1,0)"
+    check_cell.value = (
+        f"=IF(SUM({first_col}{ROW_DEPRECIATION}:{last_col}{ROW_DEPRECIATION})<={tpc_ref}+0.01,1,0)"
+    )
     check_cell.font = Font(color=COLOR_FORMULA)
 
     _add_named_range(wb, "Tax_LastCol", "Calc_Tax", f"{last_col}1")

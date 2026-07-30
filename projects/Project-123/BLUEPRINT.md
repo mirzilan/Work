@@ -34,14 +34,14 @@ Reference document for the bankable project finance model engine. Check every bu
 | 🟦 Input | `Assumptions_Constant` | — | ⏳ Stage 1c | Scenarios **across columns**, 10 placeholders, Active column via `INDEX`/`MATCH` |
 | 🟦 Input | `Assumptions_Periodic_Capex` | Monthly | ⏳ Stage 1c | Scenario **row-blocks**, capex phasing; escalation library embedded at bottom (monthly index) |
 | 🟦 Input | `Assumptions_Periodic_Ops` | Quarterly | ⏳ Stage 1c | Scenario row-blocks, volume/price/opex/maintenance-capex drivers; escalation library embedded at bottom (quarterly index) |
-| 🟨 Calc | `Calc_Capex` | Monthly | ✅ built (no IDC yet) | Draws by category, cumulative spend, funding split; IDC line pending 1b |
-| 🟨 Calc | `Calc_Financing_Cons` | Monthly | ✅ built (fixed ratio) | Debt/equity draws, drawdown method (1b), IDC + Loop 1 (1b) |
+| 🟨 Calc | `Calc_Capex` | Monthly | ✅ built (uses-only, IDC linked) | Draws by category, cumulative spend, IDC + TPC; funding rows link from Financing_Cons |
+| 🟨 Calc | `Calc_Financing_Cons` | Monthly | ✅ built (Loop 1 live) | Owns all funding: drawdown method, debt/equity draws, IDC solve |
 | 🟨 Calc | `Calc_Revenue_Opex` | Quarterly | ✅ built (flat dummy) | Revenue, opex, other income; escalation-driven in 1c |
 | 🟨 Calc | `Calc_Tax` | Quarterly | ✅ built (single vintage, pre-interest) | Depreciation, loss carryforward, tax; interest deduction (1b), maintenance capex vintage (1c) |
 | 🟨 Calc | `Calc_CFADS` | Quarterly | ✅ built (no reserves) | Cash waterfall to FCFE; DSRA/MRA (1c) |
 | 🟨 Calc | `Calc_Financing_Ops` | Quarterly | ✅ built (level amortization) | DSCR-**locked** sculpted repayment (1b, replaces level amort), LLCR/PLCR (1c) |
 | 🟩 Output | `FS_Quarterly` | Quarterly | ✅ built | 3-statements, FCFF/FCFE built once, PIRR/EIRR via `XIRR` |
-| 🟩 Output | `FS_Annual` | Annual | ✅ built (ops-only) | Rolled up from Quarterly; construction-period section pending 1b |
+| 🟩 Output | `FS_Annual` | Annual | ✅ built (ops + construction) | Rolled up from Quarterly; separate construction-period annual block |
 | 🟩 Output | `Valuation_SellDown` | Annual | ⏳ Stage 1d | Standalone, read-only downstream of `FS_Annual`. Per exit-year: implied sale price (`XNPV`), seller's realized EIRR (`XIRR`), buyer's implied PIRR |
 | 🟩 Output | `Dashboard` | — | ⏳ Stage 1d | Charts + Sources & Uses table (formula-linked, not chart-derived) |
 | 🟥 Check | `Check_Control` | — | ✅ built (8 checks) | Master aggregator, direct-cell-ref pulls (no `INDIRECT`), `MODEL OK`/`ERRORS FOUND` |
@@ -118,7 +118,7 @@ Only **one** unknown needs solving: starting debt size `D` such that closing bal
 |---|---|---|
 | **1a — Plumbing proof** | Single scenario, flat dummy revenue, fixed-ratio debt, zero circularity | ✅ **complete** (tasks #1–10) |
 | **Interim — Input centralization** | `Cover` + `Assumptions_Model`, rewire all `Calc_*` hardcodes to links | ✅ **complete** (task #18) |
-| **1b — Circularity** | Loop 1 + drawdown method selector + construction-period `FS_Annual` (#11) → Loop 2 + tax shield/interest deduction (#12) → dirty-flag check (#13) | ⏳ **next**, #11 in progress |
+| **1b — Circularity** | Loop 1 + drawdown method selector + construction-period `FS_Annual` (#11 ✅) → Loop 2 + tax shield/interest deduction (#12) → dirty-flag check (#13) | ⏳ in progress — #11 done, #12 next |
 | **1c — Scale out** | 10 scenarios + escalation library (#14) → DSRA/MRA + LC option + LLCR/PLCR + multi-vintage maintenance capex (#15) → control panel + goal-seek (#16) | pending |
 | **1d — Sell-down** | `Valuation_SellDown` + `Dashboard` (#17) | pending |
 

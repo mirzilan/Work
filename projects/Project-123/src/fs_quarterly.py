@@ -96,6 +96,7 @@ def build_fs_quarterly(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) 
     _label(ws, ROW_CHECK_BS_BALANCES_COUNT, "Informational: # of quarters where BS does not balance")
 
     n_quarters = len(timeline.operations_quarters)
+    last_cons_col = col_letter(len(timeline.construction_months) - 1)
 
     for i, period in enumerate(timeline.operations_quarters):
         col = col_letter(i)
@@ -132,13 +133,13 @@ def build_fs_quarterly(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) 
 
         _formula(ws, col, ROW_BS_CASH, f"={col}{ROW_CLOSING_CASH}")
         if i == 0:
-            _formula(ws, col, ROW_BS_PPE_NET, f"=Calc_Capex!$Z$16-{col}{ROW_DEPRECIATION}")
+            _formula(ws, col, ROW_BS_PPE_NET, f"=Calc_Capex!${last_cons_col}$17-{col}{ROW_DEPRECIATION}")
         else:
             _formula(ws, col, ROW_BS_PPE_NET, f"={prev_col}{ROW_BS_PPE_NET}-{col}{ROW_DEPRECIATION}")
         _formula(ws, col, ROW_BS_TOTAL_ASSETS, f"={col}{ROW_BS_CASH}+{col}{ROW_BS_PPE_NET}")
 
         _link(ws, col, ROW_BS_DEBT, f"Calc_Financing_Ops!{col}9")
-        _link(ws, col, ROW_BS_PAID_IN_CAPITAL, "Calc_Capex!$Z$13")
+        _link(ws, col, ROW_BS_PAID_IN_CAPITAL, f"Calc_Capex!${last_cons_col}$13")
         if i == 0:
             _formula(ws, col, ROW_BS_RETAINED_EARNINGS, f"={col}{ROW_NET_INCOME}-{col}{ROW_DIVIDENDS_PAID}")
         else:

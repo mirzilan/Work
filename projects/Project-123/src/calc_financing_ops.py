@@ -64,8 +64,8 @@ def build_calc_financing_ops(wb: Workbook, timeline: Timeline, inputs: ProjectIn
     # Level quarterly payment via PMT, computed once as a named formula reused each period while balance > 0
     payment_formula = (
         f"-PMT({quarterly_rate_expr},$B$9*4,Calc_Financing_Cons!"
-        f"{_last_construction_col(timeline)}8)"
-    )  # ROW_CLOSING_BAL in calc_financing_cons.py = 8
+        f"{_last_construction_col(timeline)}25)"
+    )  # ROW_CLOSING_BAL in calc_financing_cons.py = 25
 
     for i, period in enumerate(timeline.operations_quarters):
         col = col_letter(i)
@@ -76,7 +76,7 @@ def build_calc_financing_ops(wb: Workbook, timeline: Timeline, inputs: ProjectIn
 
         opening_cell = ws[f"{col}{ROW_OPENING_BAL}"]
         if i == 0:
-            opening_cell.value = f"=Calc_Financing_Cons!{_last_construction_col(timeline)}8"
+            opening_cell.value = f"=Calc_Financing_Cons!{_last_construction_col(timeline)}25"
             opening_cell.font = Font(color=COLOR_LINK)
         else:
             prev_col = col_letter(i - 1)

@@ -23,8 +23,9 @@ ROW_DEBT_DRAW = 10
 ROW_EQUITY_DRAW = 11
 ROW_CUM_DEBT_DRAW = 12
 ROW_CUM_EQUITY_DRAW = 13
-ROW_IDC_CAPITALIZED = 15  # placeholder, zero until Stage 1b
-ROW_TOTAL_PROJECT_COST = 16
+ROW_IDC_CAPITALIZED = 15
+ROW_CUM_IDC = 16
+ROW_TOTAL_PROJECT_COST = 17
 
 ROW_CHECK_HEADER = 20
 ROW_CHECK_FUNDING_TIES = 21
@@ -43,16 +44,17 @@ def build_calc_capex(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) ->
     _write_row_label(ws, ROW_PHASING_PCT, "Capex Phasing %")
     _write_row_label(ws, ROW_CAPEX_DRAW, "Capex Draw ($)")
     _write_row_label(ws, ROW_CUM_CAPEX_DRAW, "Cumulative Capex Draw ($)")
-    _write_row_label(ws, ROW_DEBT_FUNDING_PCT, "Debt Funding % (fixed, Stage 1a)")
-    _write_row_label(ws, ROW_DEBT_DRAW, "Debt Draw ($)")
-    _write_row_label(ws, ROW_EQUITY_DRAW, "Equity Draw ($)")
-    _write_row_label(ws, ROW_CUM_DEBT_DRAW, "Cumulative Debt Draw ($)")
-    _write_row_label(ws, ROW_CUM_EQUITY_DRAW, "Cumulative Equity Draw ($)")
-    _write_row_label(ws, ROW_IDC_CAPITALIZED, "IDC (Capitalized) — placeholder, wired in Stage 1b")
-    _write_row_label(ws, ROW_TOTAL_PROJECT_COST, "Total Project Cost (Cumulative)")
+    _write_row_label(ws, ROW_DEBT_FUNDING_PCT, "Gearing (Debt % of Total Project Cost)")
+    _write_row_label(ws, ROW_DEBT_DRAW, "Debt Draw ($) — linked from Calc_Financing_Cons")
+    _write_row_label(ws, ROW_EQUITY_DRAW, "Equity Draw ($) — linked from Calc_Financing_Cons")
+    _write_row_label(ws, ROW_CUM_DEBT_DRAW, "Cumulative Debt Draw ($) — linked from Calc_Financing_Cons")
+    _write_row_label(ws, ROW_CUM_EQUITY_DRAW, "Cumulative Equity Draw ($) — linked from Calc_Financing_Cons")
+    _write_row_label(ws, ROW_IDC_CAPITALIZED, "IDC ($, monthly) — solved via Loop 1, linked from Calc_Financing_Cons")
+    _write_row_label(ws, ROW_CUM_IDC, "Cumulative IDC ($)")
+    _write_row_label(ws, ROW_TOTAL_PROJECT_COST, "Total Project Cost (Cumulative) = Cum Capex + Cum IDC")
 
     ws.cell(row=ROW_CHECK_HEADER, column=1, value="Checks").font = Font(bold=True)
-    _write_row_label(ws, ROW_CHECK_FUNDING_TIES, "Check: Debt + Equity Draw = Capex Draw")
+    _write_row_label(ws, ROW_CHECK_FUNDING_TIES, "Check: Cum Debt + Cum Equity = Cum Capex + Cum IDC")
     _write_row_label(ws, ROW_CHECK_TOTAL_MATCHES_INPUT, "Check: Final Cumulative Capex = Total Capex Input")
 
     ws["A4"] = "Total Capex Input ($) — linked from Assumptions_Model"
@@ -98,39 +100,31 @@ def build_calc_capex(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) ->
         cum_cell.font = Font(color=COLOR_FORMULA)
         cum_cell.number_format = "#,##0"
 
-        # Debt / equity draw — fixed ratio for Stage 1a (no IDC solve yet)
-        debt_draw_cell = ws[f"{col}{ROW_DEBT_DRAW}"]
-        debt_draw_cell.value = f"={col}{ROW_CAPEX_DRAW}*$B${ROW_DEBT_FUNDING_PCT}"
-        debt_draw_cell.font = Font(color=COLOR_FORMULA)
-        debt_draw_cell.number_format = "#,##0"
+        # Funding is owned by Calc_Financing_Cons (drawdown method + IDC solve live there);
+        # these rows are presentation links so the capex sheet reads as a full sources/uses view.
+        for row, source_row in (
+            (ROW_DEBT_DRAW, 21),
+            (ROW_EQUITY_DRAW, 22),
+            (ROW_CUM_DEBT_DRAW, 23),
+            (ROW_CUM_EQUITY_DRAW, 24),
+            (ROW_IDC_CAPITALIZED, 18),
+        ):
+            cell = ws[f"{col}{row}"]
+            cell.value = f"=Calc_Financing_Cons!{col}{source_row}"
+            cell.font = Font(color=COLOR_LINK)
+            cell.number_format = "#,##0"
 
-        equity_draw_cell = ws[f"{col}{ROW_EQUITY_DRAW}"]
-        equity_draw_cell.value = f"={col}{ROW_CAPEX_DRAW}-{col}{ROW_DEBT_DRAW}"
-        equity_draw_cell.font = Font(color=COLOR_FORMULA)
-        equity_draw_cell.number_format = "#,##0"
-
-        cum_debt_cell = ws[f"{col}{ROW_CUM_DEBT_DRAW}"]
-        cum_equity_cell = ws[f"{col}{ROW_CUM_EQUITY_DRAW}"]
+        cum_idc_cell = ws[f"{col}{ROW_CUM_IDC}"]
         if i == 0:
-            cum_debt_cell.value = f"={col}{ROW_DEBT_DRAW}"
-            cum_equity_cell.value = f"={col}{ROW_EQUITY_DRAW}"
+            cum_idc_cell.value = f"={col}{ROW_IDC_CAPITALIZED}"
         else:
             prev_col = col_letter(i - 1)
-            cum_debt_cell.value = f"={prev_col}{ROW_CUM_DEBT_DRAW}+{col}{ROW_DEBT_DRAW}"
-            cum_equity_cell.value = f"={prev_col}{ROW_CUM_EQUITY_DRAW}+{col}{ROW_EQUITY_DRAW}"
-        cum_debt_cell.font = Font(color=COLOR_FORMULA)
-        cum_equity_cell.font = Font(color=COLOR_FORMULA)
-        cum_debt_cell.number_format = "#,##0"
-        cum_equity_cell.number_format = "#,##0"
-
-        # IDC placeholder — zero until Stage 1b wires the circular solve
-        idc_cell = ws[f"{col}{ROW_IDC_CAPITALIZED}"]
-        idc_cell.value = 0
-        idc_cell.font = Font(color=COLOR_INPUT)
-        idc_cell.number_format = "#,##0"
+            cum_idc_cell.value = f"={prev_col}{ROW_CUM_IDC}+{col}{ROW_IDC_CAPITALIZED}"
+        cum_idc_cell.font = Font(color=COLOR_FORMULA)
+        cum_idc_cell.number_format = "#,##0"
 
         total_cost_cell = ws[f"{col}{ROW_TOTAL_PROJECT_COST}"]
-        total_cost_cell.value = f"={col}{ROW_CUM_CAPEX_DRAW}+{col}{ROW_IDC_CAPITALIZED}"
+        total_cost_cell.value = f"={col}{ROW_CUM_CAPEX_DRAW}+{col}{ROW_CUM_IDC}"
         total_cost_cell.font = Font(color=COLOR_FORMULA)
         total_cost_cell.number_format = "#,##0"
 
@@ -140,7 +134,7 @@ def build_calc_capex(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) ->
     check_ties = ws[f"{last_col}{ROW_CHECK_FUNDING_TIES}"]
     check_ties.value = (
         f"=IF(ROUND({last_col}{ROW_CUM_DEBT_DRAW}+{last_col}{ROW_CUM_EQUITY_DRAW}"
-        f"-{last_col}{ROW_CUM_CAPEX_DRAW},2)=0,1,0)"
+        f"-{last_col}{ROW_CUM_CAPEX_DRAW}-{last_col}{ROW_CUM_IDC},2)=0,1,0)"
     )
     check_ties.font = Font(color=COLOR_FORMULA)
 
