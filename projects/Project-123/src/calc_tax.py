@@ -6,7 +6,6 @@ from inputs import ProjectInputs
 from timeline import Timeline
 from workbook_builder import (
     FIRST_DATA_COL,
-    COLOR_INPUT,
     COLOR_FORMULA,
     COLOR_LINK,
     TAB_COLOR_CALC,
@@ -36,14 +35,14 @@ def build_calc_tax(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) -> W
     ws["A1"] = "Calc_Tax — Quarterly Tax (single vintage, Stage 1a)"
     ws["A1"].font = Font(bold=True, size=12)
 
-    ws["A4"] = "Tax Rate"
-    ws[TAX_RATE_CELL] = inputs.tax.tax_rate
-    ws[TAX_RATE_CELL].font = Font(color=COLOR_INPUT)
+    ws["A4"] = "Tax Rate — linked from Assumptions_Model"
+    ws[TAX_RATE_CELL] = "=Assumptions_Model!$B$10"
+    ws[TAX_RATE_CELL].font = Font(color=COLOR_LINK)
     ws[TAX_RATE_CELL].number_format = "0.00%"
 
-    ws["A9"] = "Useful Life (Years)"
-    ws[USEFUL_LIFE_YEARS_CELL] = inputs.tax.useful_life_years
-    ws[USEFUL_LIFE_YEARS_CELL].font = Font(color=COLOR_INPUT)
+    ws["A9"] = "Useful Life (Years) — linked from Assumptions_Model"
+    ws[USEFUL_LIFE_YEARS_CELL] = "=Assumptions_Model!$B$11"
+    ws[USEFUL_LIFE_YEARS_CELL].font = Font(color=COLOR_LINK)
 
     _label(ws, ROW_DATE_HEADER, "Period End Date")
     _label(ws, ROW_QUARTER_INDEX, "Operating Quarter #")

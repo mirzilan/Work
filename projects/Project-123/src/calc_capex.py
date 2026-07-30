@@ -8,6 +8,7 @@ from workbook_builder import (
     FIRST_DATA_COL,
     COLOR_INPUT,
     COLOR_FORMULA,
+    COLOR_LINK,
     TAB_COLOR_CALC,
     col_letter,
 )
@@ -54,15 +55,16 @@ def build_calc_capex(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) ->
     _write_row_label(ws, ROW_CHECK_FUNDING_TIES, "Check: Debt + Equity Draw = Capex Draw")
     _write_row_label(ws, ROW_CHECK_TOTAL_MATCHES_INPUT, "Check: Final Cumulative Capex = Total Capex Input")
 
-    total_capex_cell = "B_TOTAL_CAPEX"
-    ws["B4"] = inputs.capex.total_capex
-    ws["B4"].font = Font(color=COLOR_INPUT)
-    ws["A4"] = "Total Capex Input ($)"
+    ws["A4"] = "Total Capex Input ($) — linked from Assumptions_Model"
+    ws["B4"] = "=Assumptions_Model!$B$3"
+    ws["B4"].font = Font(color=COLOR_LINK)
+    ws["B4"].number_format = "#,##0"
     wb.defined_names.add(_named_range("TotalCapex", "Calc_Capex", "B4"))
 
-    debt_pct_cell_ref = "B9"
-    ws[debt_pct_cell_ref] = inputs.financing.debt_pct_of_capex
-    ws[debt_pct_cell_ref].font = Font(color=COLOR_INPUT)
+    ws["A9"] = "Debt Funding % — linked from Assumptions_Model (Stage 1a: fixed ratio; Stage 1b: Loop 1 draw sequencing)"
+    ws["B9"] = "=Assumptions_Model!$B$4"
+    ws["B9"].font = Font(color=COLOR_LINK)
+    ws["B9"].number_format = "0.00%"
 
     n_months = len(timeline.construction_months)
 
@@ -74,10 +76,10 @@ def build_calc_capex(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) ->
 
         ws[f"{col}{ROW_MONTH_INDEX}"] = i + 1
 
-        # Phasing % — blue hardcoded input
+        # Phasing % — green link from Assumptions_Model (same column alignment)
         phasing_cell = ws[f"{col}{ROW_PHASING_PCT}"]
-        phasing_cell.value = inputs.capex.phasing_pct_by_month[i]
-        phasing_cell.font = Font(color=COLOR_INPUT)
+        phasing_cell.value = f"=Assumptions_Model!{col}16"  # ROW_PHASING_PCT in assumptions_model.py
+        phasing_cell.font = Font(color=COLOR_LINK)
         phasing_cell.number_format = "0.00%"
 
         # Capex Draw = phasing % * total capex — black formula

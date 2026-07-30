@@ -31,6 +31,8 @@ def col_letter(period_index: int) -> str:
 
 
 def build_workbook(inputs: ProjectInputs, timeline: Timeline, output_path: str) -> Workbook:
+    from cover import build_cover
+    from assumptions_model import build_assumptions_model
     from calc_capex import build_calc_capex
     from calc_financing_cons import build_calc_financing_cons
     from calc_revenue_opex import build_calc_revenue_opex
@@ -42,6 +44,8 @@ def build_workbook(inputs: ProjectInputs, timeline: Timeline, output_path: str) 
     from check_control import build_check_control
 
     wb = new_workbook()
+    build_cover(wb)
+    build_assumptions_model(wb, timeline, inputs)
     build_calc_capex(wb, timeline, inputs)
     build_calc_financing_cons(wb, timeline, inputs)
     build_calc_revenue_opex(wb, timeline, inputs)

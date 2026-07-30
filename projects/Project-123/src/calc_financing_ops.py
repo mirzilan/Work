@@ -6,7 +6,6 @@ from inputs import ProjectInputs
 from timeline import Timeline
 from workbook_builder import (
     FIRST_DATA_COL,
-    COLOR_INPUT,
     COLOR_FORMULA,
     COLOR_LINK,
     TAB_COLOR_CALC,
@@ -37,14 +36,14 @@ def build_calc_financing_ops(wb: Workbook, timeline: Timeline, inputs: ProjectIn
     ws["A1"] = "Calc_Financing_Ops — Quarterly Debt Service (fixed amortization, Stage 1a)"
     ws["A1"].font = Font(bold=True, size=12)
 
-    ws["A4"] = "Interest Rate (Annual)"
-    ws[INTEREST_RATE_CELL] = inputs.financing.interest_rate_annual
-    ws[INTEREST_RATE_CELL].font = Font(color=COLOR_INPUT)
+    ws["A4"] = "Interest Rate (Annual) — linked from Assumptions_Model"
+    ws[INTEREST_RATE_CELL] = "=Assumptions_Model!$B$5"
+    ws[INTEREST_RATE_CELL].font = Font(color=COLOR_LINK)
     ws[INTEREST_RATE_CELL].number_format = "0.00%"
 
-    ws["A9"] = "Debt Tenor (Years)"
-    ws[TENOR_YEARS_CELL] = inputs.financing.debt_tenor_years
-    ws[TENOR_YEARS_CELL].font = Font(color=COLOR_INPUT)
+    ws["A9"] = "Debt Tenor (Years) — linked from Assumptions_Model"
+    ws[TENOR_YEARS_CELL] = "=Assumptions_Model!$B$6"
+    ws[TENOR_YEARS_CELL].font = Font(color=COLOR_LINK)
 
     _label(ws, ROW_DATE_HEADER, "Period End Date")
     _label(ws, ROW_QUARTER_INDEX, "Operating Quarter #")

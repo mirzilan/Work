@@ -34,9 +34,9 @@ def build_calc_financing_cons(wb: Workbook, timeline: Timeline, inputs: ProjectI
     ws["A1"] = "Calc_Financing_Cons — Monthly Construction Debt Draws"
     ws["A1"].font = Font(bold=True, size=12)
 
-    ws["A4"] = "Interest Rate (Annual)"
-    ws[INTEREST_RATE_CELL] = inputs.financing.interest_rate_annual
-    ws[INTEREST_RATE_CELL].font = Font(color=COLOR_INPUT)
+    ws["A4"] = "Interest Rate (Annual) — linked from Assumptions_Model"
+    ws[INTEREST_RATE_CELL] = "=Assumptions_Model!$B$5"
+    ws[INTEREST_RATE_CELL].font = Font(color=COLOR_LINK)
     ws[INTEREST_RATE_CELL].number_format = "0.00%"
 
     _label(ws, ROW_DATE_HEADER, "Period End Date")

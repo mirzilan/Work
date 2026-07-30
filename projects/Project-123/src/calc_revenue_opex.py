@@ -6,8 +6,8 @@ from inputs import ProjectInputs
 from timeline import Timeline
 from workbook_builder import (
     FIRST_DATA_COL,
-    COLOR_INPUT,
     COLOR_FORMULA,
+    COLOR_LINK,
     TAB_COLOR_CALC,
     col_letter,
 )
@@ -33,14 +33,14 @@ def build_calc_revenue_opex(wb: Workbook, timeline: Timeline, inputs: ProjectInp
     ws["A1"] = "Calc_Revenue_Opex — Quarterly Revenue & Opex (flat dummy, Stage 1a)"
     ws["A1"].font = Font(bold=True, size=12)
 
-    ws["A4"] = "Annual Revenue Input ($) — flat dummy placeholder"
-    ws[ANNUAL_REVENUE_CELL] = inputs.revenue_opex.annual_revenue
-    ws[ANNUAL_REVENUE_CELL].font = Font(color=COLOR_INPUT)
+    ws["A4"] = "Annual Revenue Input ($) — linked from Assumptions_Model, flat dummy placeholder"
+    ws[ANNUAL_REVENUE_CELL] = "=Assumptions_Model!$B$8"
+    ws[ANNUAL_REVENUE_CELL].font = Font(color=COLOR_LINK)
     ws[ANNUAL_REVENUE_CELL].number_format = "#,##0"
 
-    ws["A9"] = "Opex % of Revenue"
-    ws[OPEX_PCT_CELL] = inputs.revenue_opex.opex_pct_of_revenue
-    ws[OPEX_PCT_CELL].font = Font(color=COLOR_INPUT)
+    ws["A9"] = "Opex % of Revenue — linked from Assumptions_Model"
+    ws[OPEX_PCT_CELL] = "=Assumptions_Model!$B$9"
+    ws[OPEX_PCT_CELL].font = Font(color=COLOR_LINK)
     ws[OPEX_PCT_CELL].number_format = "0.00%"
 
     _label(ws, ROW_DATE_HEADER, "Period End Date")
