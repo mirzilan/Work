@@ -33,9 +33,11 @@ def col_letter(period_index: int) -> str:
 def build_workbook(inputs: ProjectInputs, timeline: Timeline, output_path: str) -> Workbook:
     from calc_capex import build_calc_capex
     from calc_financing_cons import build_calc_financing_cons
+    from calc_revenue_opex import build_calc_revenue_opex
 
     wb = new_workbook()
     build_calc_capex(wb, timeline, inputs)
     build_calc_financing_cons(wb, timeline, inputs)
+    build_calc_revenue_opex(wb, timeline, inputs)
     wb.save(output_path)
     return wb
