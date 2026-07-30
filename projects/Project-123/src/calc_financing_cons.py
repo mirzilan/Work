@@ -27,6 +27,7 @@ CELL_CONVERGENCE_GAP = "B11"
 ABS_DRAWDOWN_METHOD = "$B$3"
 ABS_INTEREST_RATE = "$B$4"
 ABS_GEARING = "$B$5"
+ABS_TOTAL_PROJECT_COST = "$B$7"
 ABS_DEBT_FACILITY = "$B$8"
 ABS_EQUITY_COMMITMENT = "$B$9"
 
@@ -49,6 +50,7 @@ ROW_CHECK_CLOSING_MATCHES_DRAWS = 29
 ROW_CHECK_IDC_CONVERGED = 30
 ROW_CHECK_SOURCES_TIE_USES = 31
 ROW_CHECK_WITHIN_FACILITY = 32
+ROW_CHECK_FACILITY_FULLY_DRAWN = 33
 
 
 def build_calc_financing_cons(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) -> Worksheet:
@@ -128,6 +130,7 @@ def build_calc_financing_cons(wb: Workbook, timeline: Timeline, inputs: ProjectI
     _label(ws, ROW_CHECK_IDC_CONVERGED, "Check: IDC Converged (|gap| <= Cover tolerance)")
     _label(ws, ROW_CHECK_SOURCES_TIE_USES, "Check: Cum Debt + Cum Equity = Cum Funding Requirement")
     _label(ws, ROW_CHECK_WITHIN_FACILITY, "Check: Cumulative Debt Draw <= Debt Facility")
+    _label(ws, ROW_CHECK_FACILITY_FULLY_DRAWN, "Check: Cumulative Debt Draw = Debt Facility (draws honour the solve)")
 
     for i, period in enumerate(timeline.construction_months):
         col = col_letter(i)
@@ -182,6 +185,12 @@ def build_calc_financing_cons(wb: Workbook, timeline: Timeline, inputs: ProjectI
     _check(ws, last_col, ROW_CHECK_WITHIN_FACILITY,
            f"=IF({last_col}{ROW_CUM_DEBT_DRAW}<={ABS_DEBT_FACILITY}+Cover!$B$4,1,0)")
 
+    # Regression guard: if the draw formulas ever stop referencing the facility (as the
+    # Pari Passu branch once did, silently pegging gearing to the raw input and ignoring
+    # the Loop 2 solve entirely), cumulative draws diverge from the facility and this trips.
+    _check(ws, last_col, ROW_CHECK_FACILITY_FULLY_DRAWN,
+           f"=IF(ABS({last_col}{ROW_CUM_DEBT_DRAW}-{ABS_DEBT_FACILITY})<=Cover!$B$4,1,0)")
+
     _add_named_range(wb, "StagedIDC", "Calc_Financing_Cons", CELL_STAGED_IDC)
     _add_named_range(wb, "CalculatedIDC", "Calc_Financing_Cons", CELL_CALCULATED_IDC)
     _add_named_range(wb, "IDCConvergenceGap", "Calc_Financing_Cons", CELL_CONVERGENCE_GAP)
@@ -207,7 +216,14 @@ def _debt_draw_formula(col: str, prev: str | None) -> str:
 
     debt_first = f"MIN({col}{cum},{ABS_DEBT_FACILITY})-{prev_cum_debt}"
     equity_first = f"{col}{ROW_FUNDING_REQUIREMENT}-(MIN({col}{cum},{ABS_EQUITY_COMMITMENT})-{prev_cum_equity})"
-    pari_passu = f"{col}{ROW_FUNDING_REQUIREMENT}*{ABS_GEARING}"
+    # Split at the facility's share of total project cost, not the raw gearing input.
+    # Under DSCR Sculpted the facility is the solved debt size, so using the input gearing
+    # here would ignore the solve entirely and peg implied gearing to the assumption.
+    # Under Fixed Gearing facility = gearing x TPC, so this reduces to the same thing.
+    pari_passu = (
+        f"{col}{ROW_FUNDING_REQUIREMENT}*"
+        f"IFERROR({ABS_DEBT_FACILITY}/{ABS_TOTAL_PROJECT_COST},0)"
+    )
 
     return (
         f'=IF({ABS_DRAWDOWN_METHOD}="Debt First",{debt_first},'

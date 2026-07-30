@@ -21,6 +21,7 @@ CHECKS = [
     ("Calc_Financing_Cons", "IDC Converged (Loop 1)", "Z30", "flag"),
     ("Calc_Financing_Cons", "Cum Debt + Cum Equity = Cum Funding Requirement", "Z31", "flag"),
     ("Calc_Financing_Cons", "Cumulative Debt Draw <= Debt Facility", "Z32", "flag"),
+    ("Calc_Financing_Cons", "Debt draws honour the solved facility", "Z33", "flag"),
     ("Calc_Revenue_Opex", "Year 1 Revenue Sum = Annual Revenue Input", "F12", "flag"),
     ("Calc_Tax", "Accumulated Depreciation <= Total Project Cost", "CD15", "flag"),
     ("Calc_Financing_Ops", "Closing Balance = 0 at Debt Tenor End", "CD26", "flag"),

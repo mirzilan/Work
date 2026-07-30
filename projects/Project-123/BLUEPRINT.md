@@ -44,7 +44,7 @@ Reference document for the bankable project finance model engine. Check every bu
 | 🟩 Output | `FS_Annual` | Annual | ✅ built (ops + construction) | Rolled up from Quarterly; separate construction-period annual block |
 | 🟩 Output | `Valuation_SellDown` | Annual | ⏳ Stage 1d | Standalone, read-only downstream of `FS_Annual`. Per exit-year: implied sale price (`XNPV`), seller's realized EIRR (`XIRR`), buyer's implied PIRR |
 | 🟩 Output | `Dashboard` | — | ⏳ Stage 1d | Charts + Sources & Uses table (formula-linked, not chart-derived) |
-| 🟥 Check | `Check_Control` | — | ✅ built (15 checks) | Master aggregator, direct-cell-ref pulls (no `INDIRECT`), `MODEL OK`/`ERRORS FOUND` |
+| 🟥 Check | `Check_Control` | — | ✅ built (16 checks) | Master aggregator, direct-cell-ref pulls (no `INDIRECT`), `MODEL OK`/`ERRORS FOUND` |
 
 ---
 
@@ -139,6 +139,8 @@ So there is **no bisection** (an earlier draft of this blueprint specified one �
 - Don't recalculate PIRR per exit year in `Valuation_SellDown` — it's a whole-of-project unlevered number, doesn't vary by holding period
 - Don't bisect for debt sculpting at all — lock DSCR via formula and the debt size falls out as a PV in closed form
 - Don't discount the capped service row when computing sculpted capacity — use the uncapped basis, or the fixed point goes degenerate and silently "converges" at whatever it started from
+- Don't let any drawdown branch reference the raw gearing input instead of the solved facility — the Pari Passu branch did exactly that and pegged implied gearing to the assumption, making Loop 2 look broken while every check still passed. `Check_Control` now guards this ("Debt draws honour the solved facility")
+- Don't let the verification harness re-derive a quantity the workbook takes as an input — the harness computed the pari-passu split as `facility/TPC` while the sheet used the gearing input, so the two disagreed and the bug survived verification. Mirror the formula, don't reimplement the intent
 - Don't build scenario conditional-formatting highlighting now — explicitly Phase 2
 - Don't skip the feasibility pre-check in multi-scenario goal-seek — burns iterations discovering what one bound-check would show instantly
 - Don't trust VBA-solved values without the dirty-flag check — stale copy-pasted numbers look identical to fresh ones
