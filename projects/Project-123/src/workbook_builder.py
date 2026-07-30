@@ -37,6 +37,8 @@ def build_workbook(inputs: ProjectInputs, timeline: Timeline, output_path: str) 
     from calc_tax import build_calc_tax
     from calc_financing_ops import build_calc_financing_ops
     from calc_cfads import build_calc_cfads
+    from fs_quarterly import build_fs_quarterly
+    from fs_annual import build_fs_annual
 
     wb = new_workbook()
     build_calc_capex(wb, timeline, inputs)
@@ -45,5 +47,7 @@ def build_workbook(inputs: ProjectInputs, timeline: Timeline, output_path: str) 
     build_calc_tax(wb, timeline, inputs)
     build_calc_financing_ops(wb, timeline, inputs)
     build_calc_cfads(wb, timeline, inputs)
+    build_fs_quarterly(wb, timeline, inputs)
+    build_fs_annual(wb, timeline, inputs)
     wb.save(output_path)
     return wb

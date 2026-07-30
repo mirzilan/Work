@@ -35,7 +35,10 @@ class Timeline:
 
 def build_timeline(dates: ProjectDates) -> Timeline:
     construction_months = _build_construction_months(dates)
-    ops_start = construction_months[-1].end if construction_months else dates.construction_start
+    if construction_months:
+        ops_start = construction_months[-1].end + relativedelta(days=1)
+    else:
+        ops_start = dates.construction_start
     operations_quarters = _build_operations_quarters(ops_start, dates.operations_years, dates.construction_start)
     return Timeline(construction_months=construction_months, operations_quarters=operations_quarters)
 
