@@ -1,40 +1,79 @@
-# Work
+# Work — Jarvis: Personal Finance/Investment Workspace
 
-This repository is a working environment for corporate finance and strategy engineering: financial models, valuation and deal analysis, strategic planning artifacts, and the tools that generate them. Output is typically Excel (`.xlsx`), built programmatically rather than hand-assembled, so it stays auditable, versionable, and reproducible.
+This is your persistent AI working environment for corporate finance, valuation, investment appraisal, and strategic M&A work. It combines day-to-day deal/project workspaces with a reusable professional toolkit built over time. Everything programmatic (Python/openpyxl), auditable, and reproducible.
 
-## Philosophy
+## About You
 
-- **Auditable over clever.** Every output number should be traceable to a driver and a formula, not a hardcoded value. If a human reviewer can't follow the logic in the workbook itself, it's not done.
-- **Programmatic generation.** Models are built by code (primarily Python + `openpyxl`), not manually in Excel. The code is the source of truth; the `.xlsx` is a generated artifact.
-- **Institutional-grade formatting.** Financial workbooks follow standard buy-side/banking conventions: consistent color coding for inputs vs. formulas vs. links, clear section headers, and a layout a deal team could pick up cold.
-- **Reproducibility.** Given the same inputs and code, output must be identical. No manual post-processing of generated files.
+**Background:** 9 years investment & strategy engineering.
+- EY (credit risk, derivative valuation) → EY Parthenon (M&A, valuation, appraisal, board-level IC papers; infrastructure, power, utilities, transport, leisure, property sectors) → Gentari Hydrogen (Manager, Ventures & Partnerships; commercial structuring, operating-model design for energy-transition deals, $100M–$2B+ range).
+- **Tools:** S&P Capital IQ, Bloomberg, Refinitiv Eikon, Power BI, SAS, VBA, Excel.
+- **Education:** CFA Level III candidate.
 
-## Repository structure
+**Working style:** Direct, dense tables/bullets over prose. Output-focused — deliver models, memos, IC papers, not commentary.
 
-- `src/` — Python source for model engines, generators, and shared finance/strategy utilities.
-- `data/` — input data and assumptions (never commit real client/deal data — see Confidentiality below).
-- `output/` — generated workbooks and reports. Never committed (`*.xlsx` is gitignored); regenerate from `src/` instead.
-- Each major initiative (e.g. a specific model build) gets its own subdirectory or package under `src/`, not a flat dump of scripts.
+## How to Use This Repo
 
-## Conventions
+**Active work** — see `deals/`:
+- Each deal gets a timestamped folder: `deals/2026-07-ProjectName/` containing appraisals, memos, IC papers.
+- Run workflows from `workflows/` to generate consistent output.
 
-- **Language:** Python, using `openpyxl` for Excel generation unless a task specifically calls for something else.
-- **No hardcoded assumptions in code.** Drivers (rates, dates, growth assumptions, capex/opex inputs) belong in a clearly separated inputs layer, not buried in formula-construction logic.
-- **Formula-first.** Where Excel can compute a value via formula, prefer writing the formula over precomputing the value in Python and writing a static number — the whole point is a workbook that recalculates correctly if a driver changes.
-- **Color coding (standard FAST/Corality-style convention), once formatting work begins:**
-  - Blue text — hardcoded inputs/assumptions
-  - Black text — formulas within the same sheet
-  - Green text — links pulled from another sheet
-  - Red text — links pulled from another workbook (avoid where possible)
-- **Naming:** sheet names, tab colors, and range names should be descriptive and consistent across models — a reviewer should never have to guess what `Sheet3` is.
-- **No comments explaining what code does** — name things well instead. Comments are reserved for non-obvious constraints (e.g. "Excel row limit," "circularity workaround for interest-during-construction").
+**Reusable toolkit** — see `frameworks/`:
+- `templates/` — IC paper, financial model, memo boilerplate.
+- `checklists/` — screening, due-diligence, validation checklists.
+- `methodologies/` — DCF frameworks, comp-analysis methods, valuation approaches.
 
-## Working practices
+**Market & sector knowledge** — see `market_intelligence/`:
+- `research/` — sector deep-dives and investment theses.
+- `benchmarks/` — competitor analysis, sector multiples, peer comparisons.
+- `macro/` — economic outlook, market moves, policy changes.
 
-- Before adding a new model or module, check for existing engines/utilities to extend rather than starting fresh — corporate finance logic (debt sculpting, DSCR checks, 3-statement links, discounting conventions) is meant to be reused across engagements.
-- Sanity-check generated workbooks open cleanly and formulas evaluate before calling a task done — a script that "ran successfully" but produced a broken workbook is not a success.
-- Large or multi-phase builds should be planned and tracked explicitly (roadmap phases, milestones) rather than built ad hoc.
+**Career** — see `career/`:
+- Opportunities, target roles, skill-building (CFA), professional network notes.
 
-## Confidentiality
+**Workflows** — see `workflows/`:
+- `*.md` files — strategic routines Claude reads and executes (e.g., `build-ic-paper.md`, `weekly-market-review.md`).
+- `*.py` files — automation scripts for data transforms, report generation, bulk uploads.
 
-This repo may be used across multiple engagements/clients. Do not commit real client names, deal terms, or non-public financial data into version control. Use anonymized or illustrative figures in anything checked in; treat `data/` as local-only unless a file is explicitly meant to be shared.
+**Work log** — see `daily/`:
+- Weekly reviews (e.g., `daily/2026-W31-review.md`) summarizing deal progress, market moves, learning.
+
+**Project initiatives** — see `projects/`:
+- Multi-phase builds: `projects/Project-123/` (bankable project finance engine; 4-phase roadmap).
+
+## Philosophy & Conventions
+
+**Auditable over clever.** Every number should trace to a driver and formula. Excel workbooks are readable by non-authors.
+
+**Programmatic generation.** Models built with Python/openpyxl, not Excel macros. Code is the source of truth; `.xlsx` is a generated artifact.
+
+**Institutional-grade formatting.**
+- Color coding (FAST/Corality):
+  - **Blue text** — hardcoded inputs/assumptions
+  - **Black text** — formulas within sheet
+  - **Green text** — links from another sheet
+  - **Red text** — cross-workbook links (avoid)
+- Consistent naming: sheet tabs, range names, headers should be self-documenting.
+
+**Reproducibility.** Same inputs + same code = identical output. No manual post-processing.
+
+**No comments explaining what code does** — name things well instead. Comments only for non-obvious constraints (e.g., Excel row limits, circular-reference workarounds).
+
+**Before building new:** Check `frameworks/` and `projects/` for reusable engines/utilities first (debt sculpting, DSCR checks, 3-statement links, IRR/NPV logic). Don't duplicate.
+
+## Confidentiality & Data
+
+- Do not commit real client names, deal terms, financial data, or terms sheets.
+- Use anonymized or illustrative figures in examples.
+- `data/` folders in projects are local-only unless explicitly marked for sharing.
+- Research and market intelligence can be shared; deal-specific appraisals should not be.
+
+## Getting Started
+
+1. **Read a workflow:** E.g., `workflows/build-ic-paper.md` — it walks you through creating an Investment Committee paper.
+2. **Run a weekly review:** Check `daily/2026-W31-review.md` for format, then create your own `daily/2026-W32-review.md`.
+3. **Check frameworks:** Browse `frameworks/templates/` for boilerplate, or `frameworks/checklists/` before screening a new deal.
+4. **Build a deal folder:** Create `deals/2026-08-NewDeal/` and generate your first IC paper or appraisal.
+
+---
+
+For detailed workflows and templates, see the subfolders and markdown files referenced above.
