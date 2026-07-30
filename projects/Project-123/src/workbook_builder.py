@@ -39,6 +39,7 @@ def build_workbook(inputs: ProjectInputs, timeline: Timeline, output_path: str) 
     from calc_cfads import build_calc_cfads
     from fs_quarterly import build_fs_quarterly
     from fs_annual import build_fs_annual
+    from check_control import build_check_control
 
     wb = new_workbook()
     build_calc_capex(wb, timeline, inputs)
@@ -49,5 +50,6 @@ def build_workbook(inputs: ProjectInputs, timeline: Timeline, output_path: str) 
     build_calc_cfads(wb, timeline, inputs)
     build_fs_quarterly(wb, timeline, inputs)
     build_fs_annual(wb, timeline, inputs)
+    build_check_control(wb)
     wb.save(output_path)
     return wb
