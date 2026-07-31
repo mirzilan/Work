@@ -13,15 +13,17 @@ CELL_MASTER_CHECK_LINK = "B9"
 
 CELL_DRAWDOWN_METHOD = "B14"
 CELL_DEBT_SIZING_MODE = "B17"
+CELL_ACTIVE_SCENARIO = "B20"
 
 DRAWDOWN_METHODS = ["Debt First", "Equity First", "Pari Passu"]
 DEBT_SIZING_MODES = ["Fixed Gearing", "DSCR Sculpted"]
+N_SCENARIOS = 10
 
-ROW_FRESHNESS_HEADER = 21
-ROW_LAST_SOLVED = 22
-ROW_SOLVE_STATUS = 23
-ROW_SNAPSHOT_TABLE_HEADER = 25
-ROW_FIRST_SNAPSHOT = 26
+ROW_FRESHNESS_HEADER = 23
+ROW_LAST_SOLVED = 24
+ROW_SOLVE_STATUS = 25
+ROW_SNAPSHOT_TABLE_HEADER = 27
+ROW_FIRST_SNAPSHOT = 28
 
 # (label, live-value formula) — every input a solve depends on. Tracking them individually
 # rather than as one hashed checksum means the model names the assumption that moved.
@@ -38,6 +40,7 @@ TRACKED_INPUTS = [
     ("Max Gearing", "=Assumptions_Model!$B$12"),
     ("Drawdown Method", "=$B$14"),
     ("Debt Sizing Mode", "=$B$17"),
+    ("Active Scenario", "=$B$20"),
     ("Capex Phasing (signature)", None),  # filled in at build time — needs the timeline width
 ]
 
@@ -119,6 +122,34 @@ def build_cover(wb: Workbook, n_construction_months: int = 24) -> Worksheet:
     )
     ws["A18"].font = Font(italic=True, size=9)
 
+    ws["A20"] = "Active Scenario (1-10)"
+    ws["A20"].font = Font(bold=True)
+    scenario_cell = ws[CELL_ACTIVE_SCENARIO]
+    scenario_cell.value = 1
+    scenario_cell.font = Font(color=COLOR_INPUT, bold=True)
+
+    scenario_validation = DataValidation(
+        type="whole",
+        operator="between",
+        formula1=1,
+        formula2=N_SCENARIOS,
+        allow_blank=False,
+        showErrorMessage=True,
+        errorTitle="Invalid scenario",
+        error=f"Enter a whole number between 1 and {N_SCENARIOS}.",
+    )
+    ws.add_data_validation(scenario_validation)
+    scenario_validation.add(scenario_cell)
+
+    ws["C20"] = "=Assumptions_Constant!$B$4"
+    ws["C20"].font = Font(color=COLOR_LINK, italic=True)
+
+    ws["A21"] = (
+        "Drives the Active column on Assumptions_Constant and the Active row on both "
+        "Periodic sheets — one switch moves every scenario-varying input together."
+    )
+    ws["A21"].font = Font(italic=True, size=9)
+
     _build_freshness_block(ws, wb, n_construction_months)
 
     _add_named_range(wb, "Cover_CircTolerance", "Cover", CELL_CIRC_TOLERANCE)
@@ -126,6 +157,7 @@ def build_cover(wb: Workbook, n_construction_months: int = 24) -> Worksheet:
     _add_named_range(wb, "Cover_MaxIterations", "Cover", CELL_MAX_ITERATIONS)
     _add_named_range(wb, "Cover_DebtSizingTolerance", "Cover", CELL_DEBT_SIZING_TOLERANCE)
     _add_named_range(wb, "Cover_DrawdownMethod", "Cover", CELL_DRAWDOWN_METHOD)
+    _add_named_range(wb, "ActiveScenario", "Cover", CELL_ACTIVE_SCENARIO)
 
     ws.column_dimensions["A"].width = 45
 

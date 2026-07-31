@@ -44,6 +44,7 @@ ROW_CHECK_FULLY_AMORTIZED = 26
 ROW_CHECK_SCULPT_CONVERGED = 27
 ROW_CHECK_MIN_DSCR = 28
 ROW_CHECK_PRINCIPAL_FLOORED = 29
+ROW_CHECK_CAPPED_BY_MAX_GEARING = 30
 
 
 def build_calc_financing_ops(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) -> Worksheet:
@@ -132,6 +133,7 @@ def build_calc_financing_ops(wb: Workbook, timeline: Timeline, inputs: ProjectIn
     _label(ws, ROW_CHECK_SCULPT_CONVERGED, "Check: Debt Sizing Converged (Loop 2)")
     _label(ws, ROW_CHECK_MIN_DSCR, "Check: Min DSCR over tenor >= Target DSCR")
     _label(ws, ROW_CHECK_PRINCIPAL_FLOORED, "Informational: # quarters principal floored at zero")
+    _label(ws, ROW_CHECK_CAPPED_BY_MAX_GEARING, "Informational: debt sizing capped by Max Gearing (1 = capped)")
 
     pmt_formula = (
         f"-PMT({ABS_INTEREST_RATE}/4,{ABS_TENOR_YEARS}*4,"
@@ -175,8 +177,12 @@ def build_calc_financing_ops(wb: Workbook, timeline: Timeline, inputs: ProjectIn
         dscr_cell.font = Font(color=COLOR_LINK)
         dscr_cell.number_format = "0.00x"
 
+    # A debt size converged to within the sizing tolerance leaves a tenor-end residual that
+    # compounds over the tenor, so an absolute epsilon would false-fail on longer tenors.
+    # Judge it on materiality instead: 0.001% of the opening balance, floored at the tolerance.
     _check(ws, last_col, ROW_CHECK_FULLY_AMORTIZED,
-           f"=IF(ABS({tenor_end_col}{ROW_CLOSING_BAL})<=Cover!$B$4,1,0)")
+           f"=IF(ABS({tenor_end_col}{ROW_CLOSING_BAL})"
+           f"<=MAX(Cover!$B$6,{first_col}{ROW_OPENING_BAL}*0.00001),1,0)")
     _check(ws, last_col, ROW_CHECK_SCULPT_CONVERGED,
            f'=IF({ABS_SIZING_MODE}<>"DSCR Sculpted",1,'
            f"IF(ABS($B$10)<=Cover!$B$6,1,0))")
@@ -185,6 +191,12 @@ def build_calc_financing_ops(wb: Workbook, timeline: Timeline, inputs: ProjectIn
     _check(ws, last_col, ROW_CHECK_PRINCIPAL_FLOORED,
            f"=SUMPRODUCT(--({first_col}{ROW_SCULPT_BASIS}:{tenor_end_col}{ROW_SCULPT_BASIS}"
            f"<{first_col}{ROW_INTEREST}:{tenor_end_col}{ROW_INTEREST}))")
+
+    # Surfaces when policy, not cash flow, is the binding constraint — the project could
+    # carry more debt than Max Gearing permits.
+    _check(ws, last_col, ROW_CHECK_CAPPED_BY_MAX_GEARING,
+           f"=IF(NPV({ABS_INTEREST_RATE}/4,{first_col}{ROW_SCULPT_BASIS}:{tenor_end_col}{ROW_SCULPT_BASIS})"
+           f">$B$6*Calc_Capex!${last_cons_col}$17,1,0)")
 
     _add_named_range(wb, "StagedDebtSize", "Calc_Financing_Ops", CELL_STAGED_DEBT_SIZE)
     _add_named_range(wb, "SculptedDebtCapacity", "Calc_Financing_Ops", CELL_SCULPTED_CAPACITY)

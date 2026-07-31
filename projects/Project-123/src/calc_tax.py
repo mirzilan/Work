@@ -4,6 +4,10 @@ from openpyxl.workbook import Workbook
 
 from inputs import ProjectInputs
 from timeline import Timeline
+# Import the source sheet's row constants rather than restating them: indexing another
+# sheet with this module's own row numbers is how Calc_Tax once pulled Revenue while
+# labelling it EBITDA.
+from calc_revenue_opex import ROW_EBITDA as REVOPEX_ROW_EBITDA
 from workbook_builder import (
     FIRST_DATA_COL,
     COLOR_FORMULA,
@@ -73,7 +77,7 @@ def build_calc_tax(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) -> W
         ws[f"{col}{ROW_QUARTER_INDEX}"] = i + 1
 
         ebitda_cell = ws[f"{col}{ROW_EBITDA}"]
-        ebitda_cell.value = f"=Calc_Revenue_Opex!{col}{ROW_EBITDA}"
+        ebitda_cell.value = f"=Calc_Revenue_Opex!{col}{REVOPEX_ROW_EBITDA}"
         ebitda_cell.font = Font(color=COLOR_LINK)
         ebitda_cell.number_format = "#,##0"
 

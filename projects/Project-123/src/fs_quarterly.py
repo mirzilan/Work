@@ -4,6 +4,12 @@ from openpyxl.workbook import Workbook
 
 from inputs import ProjectInputs
 from timeline import Timeline
+# Source-sheet row constants, imported rather than restated — see the note in calc_tax.py.
+from calc_revenue_opex import (
+    ROW_REVENUE as REVOPEX_ROW_REVENUE,
+    ROW_OPEX as REVOPEX_ROW_OPEX,
+    ROW_EBITDA as REVOPEX_ROW_EBITDA,
+)
 from workbook_builder import (
     FIRST_DATA_COL,
     COLOR_FORMULA,
@@ -106,9 +112,9 @@ def build_fs_quarterly(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) 
         ws[f"{col}{ROW_DATE_HEADER}"].number_format = "mmm-yy"
         ws[f"{col}{ROW_QUARTER_INDEX}"] = i + 1
 
-        _link(ws, col, ROW_REVENUE, f"Calc_Revenue_Opex!{col}5")
-        _link(ws, col, ROW_OPEX, f"Calc_Revenue_Opex!{col}6")
-        _link(ws, col, ROW_EBITDA, f"Calc_Revenue_Opex!{col}7")
+        _link(ws, col, ROW_REVENUE, f"Calc_Revenue_Opex!{col}{REVOPEX_ROW_REVENUE}")
+        _link(ws, col, ROW_OPEX, f"Calc_Revenue_Opex!{col}{REVOPEX_ROW_OPEX}")
+        _link(ws, col, ROW_EBITDA, f"Calc_Revenue_Opex!{col}{REVOPEX_ROW_EBITDA}")
         _link(ws, col, ROW_DEPRECIATION, f"Calc_Tax!{col}6")
         _formula(ws, col, ROW_EBIT, f"={col}{ROW_EBITDA}-{col}{ROW_DEPRECIATION}")
         _link(ws, col, ROW_INTEREST_EXPENSE, f"Calc_Financing_Ops!{col}17")

@@ -4,7 +4,7 @@ from openpyxl.workbook import Workbook
 
 from inputs import ProjectInputs
 from timeline import Timeline
-from workbook_builder import FIRST_DATA_COL, COLOR_INPUT, TAB_COLOR_INPUT, col_letter
+from workbook_builder import FIRST_DATA_COL, COLOR_LINK, TAB_COLOR_INPUT, col_letter
 
 ROW_TOTAL_CAPEX = 3
 ROW_DEBT_PCT = 4
@@ -39,21 +39,28 @@ def build_assumptions_model(wb: Workbook, timeline: Timeline, inputs: ProjectInp
     ws = wb.create_sheet("Assumptions_Model")
     ws.sheet_properties.tabColor = TAB_COLOR_INPUT
 
-    ws["A1"] = "Assumptions_Model — Centralized Inputs (single scenario, Stage 1b interim)"
+    ws["A1"] = "Assumptions_Model — Resolved Inputs for the Active Scenario"
     ws["A1"].font = Font(bold=True, size=12)
+    ws["A2"] = (
+        "Every value here resolves from Assumptions_Constant's Active column. Change "
+        "assumptions there, not here — this sheet is the live view the Calc sheets read."
+    )
+    ws["A2"].font = Font(italic=True, size=9)
 
-    _input(ws, "A3", "Total Capex ($)", CELL_TOTAL_CAPEX, inputs.capex.total_capex, "#,##0")
-    _input(ws, "A4", "Debt % of Capex", CELL_DEBT_PCT, inputs.financing.debt_pct_of_capex, "0.00%")
-    _input(ws, "A5", "Interest Rate (Annual)", CELL_INTEREST_RATE, inputs.financing.interest_rate_annual, "0.00%")
-    _input(ws, "A6", "Debt Tenor (Years)", CELL_DEBT_TENOR_YEARS, inputs.financing.debt_tenor_years, "0")
-    _input(ws, "A7", "Target DSCR (used from Stage 1b Loop 2 onward)", CELL_TARGET_DSCR, inputs.financing.target_dscr, "0.00x")
-    _input(ws, "A8", "Annual Revenue ($) — flat dummy placeholder", CELL_ANNUAL_REVENUE, inputs.revenue_opex.annual_revenue, "#,##0")
-    _input(ws, "A9", "Opex % of Revenue", CELL_OPEX_PCT, inputs.revenue_opex.opex_pct_of_revenue, "0.00%")
-    _input(ws, "A10", "Tax Rate", CELL_TAX_RATE, inputs.tax.tax_rate, "0.00%")
-    _input(ws, "A11", "Useful Life (Years)", CELL_USEFUL_LIFE_YEARS, inputs.tax.useful_life_years, "0")
-    _input(ws, "A12", "Max Gearing (cap on DSCR-sculpted debt size)", "B12", 0.85, "0.00%")
+    # Rows on Assumptions_Constant, in the order its DRIVERS list defines them.
+    _resolved(ws, "A3", "Total Capex ($)", CELL_TOTAL_CAPEX, 6, "#,##0")
+    _resolved(ws, "A4", "Gearing (Debt % of TPC)", CELL_DEBT_PCT, 7, "0.00%")
+    _resolved(ws, "A5", "Interest Rate (Annual)", CELL_INTEREST_RATE, 8, "0.00%")
+    _resolved(ws, "A6", "Debt Tenor (Years)", CELL_DEBT_TENOR_YEARS, 9, "0")
+    _resolved(ws, "A7", "Target DSCR", CELL_TARGET_DSCR, 10, "0.00x")
+    _resolved(ws, "A8", "Annual Revenue ($) — base, pre-index and pre-escalation", CELL_ANNUAL_REVENUE, 11, "#,##0")
+    _resolved(ws, "A9", "Opex % of Revenue", CELL_OPEX_PCT, 12, "0.00%")
+    _resolved(ws, "A10", "Tax Rate", CELL_TAX_RATE, 13, "0.00%")
+    _resolved(ws, "A11", "Useful Life (Years)", CELL_USEFUL_LIFE_YEARS, 14, "0")
+    _resolved(ws, "A12", "Max Gearing (cap on DSCR-sculpted debt size)", "B12", 15, "0.00%")
 
-    ws.cell(row=ROW_PHASING_LABEL, column=1, value="Capex Phasing % by Construction Month").font = Font(bold=True)
+    ws.cell(row=ROW_PHASING_LABEL, column=1,
+            value="Capex Phasing % — resolved from Assumptions_Periodic_Capex Active row").font = Font(bold=True)
     ws.cell(row=ROW_PHASING_DATE, column=1, value="Period End Date")
     ws.cell(row=ROW_PHASING_PCT, column=1, value="Phasing %")
 
@@ -64,8 +71,8 @@ def build_assumptions_model(wb: Workbook, timeline: Timeline, inputs: ProjectInp
         date_cell.number_format = "mmm-yy"
 
         pct_cell = ws[f"{col}{ROW_PHASING_PCT}"]
-        pct_cell.value = inputs.capex.phasing_pct_by_month[i]
-        pct_cell.font = Font(color=COLOR_INPUT)
+        pct_cell.value = f"=Assumptions_Periodic_Capex!{col}18"  # ROW_ACTIVE on that sheet
+        pct_cell.font = Font(color=COLOR_LINK)
         pct_cell.number_format = "0.00%"
 
     ws.freeze_panes = ws.cell(row=ROW_PHASING_PCT + 1, column=FIRST_DATA_COL)
@@ -73,9 +80,10 @@ def build_assumptions_model(wb: Workbook, timeline: Timeline, inputs: ProjectInp
     return ws
 
 
-def _input(ws: Worksheet, label_cell: str, label: str, value_cell: str, value, number_format: str) -> None:
+def _resolved(ws: Worksheet, label_cell: str, label: str, value_cell: str,
+              constant_row: int, number_format: str) -> None:
     ws[label_cell] = label
     cell = ws[value_cell]
-    cell.value = value
-    cell.font = Font(color=COLOR_INPUT)
+    cell.value = f"=Assumptions_Constant!$B${constant_row}"
+    cell.font = Font(color=COLOR_LINK)
     cell.number_format = number_format

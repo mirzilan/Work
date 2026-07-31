@@ -30,13 +30,13 @@ Reference document for the bankable project finance model engine. Check every bu
 | Color | Sheet | Resolution | Status | Purpose |
 |---|---|---|---|---|
 | 🟦 Input | `Cover` | — | ✅ built | Tolerances, drawdown + debt-sizing selectors, solve-freshness block, master check light; scenario selector (1c) |
-| 🟦 Input | `Assumptions_Model` | — | ✅ built (single-scenario) | High-level periods, FX, escalation-adjacent settings, all centralized inputs |
-| 🟦 Input | `Assumptions_Constant` | — | ⏳ Stage 1c | Scenarios **across columns**, 10 placeholders, Active column via `INDEX`/`MATCH` |
-| 🟦 Input | `Assumptions_Periodic_Capex` | Monthly | ⏳ Stage 1c | Scenario **row-blocks**, capex phasing; escalation library embedded at bottom (monthly index) |
-| 🟦 Input | `Assumptions_Periodic_Ops` | Quarterly | ⏳ Stage 1c | Scenario row-blocks, volume/price/opex/maintenance-capex drivers; escalation library embedded at bottom (quarterly index) |
+| 🟦 Input | `Assumptions_Model` | — | ✅ built (resolved layer) | Live values for the active scenario; every Calc sheet reads here, scenario machinery sits behind it |
+| 🟦 Input | `Assumptions_Constant` | — | ✅ built | 14 drivers x 10 scenarios across columns, Active column via `INDEX`; escalation rates live here so they vary by scenario |
+| 🟦 Input | `Assumptions_Periodic_Capex` | Monthly | ✅ built | Capex phasing as 10 scenario row-blocks + Active row; per-scenario sum checks. No escalation library — see note below |
+| 🟦 Input | `Assumptions_Periodic_Ops` | Quarterly | ✅ built | Revenue + opex volume indices as scenario row-blocks; escalation library (4 factors, annual % -> quarterly compounded index) with per-driver factor selectors |
 | 🟨 Calc | `Calc_Capex` | Monthly | ✅ built (uses-only, IDC linked) | Draws by category, cumulative spend, IDC + TPC; funding rows link from Financing_Cons |
 | 🟨 Calc | `Calc_Financing_Cons` | Monthly | ✅ built (Loop 1 live) | Owns all funding: drawdown method, debt/equity draws, IDC solve |
-| 🟨 Calc | `Calc_Revenue_Opex` | Quarterly | ✅ built (flat dummy) | Revenue, opex, other income; escalation-driven in 1c |
+| 🟨 Calc | `Calc_Revenue_Opex` | Quarterly | ✅ built (index + escalation driven) | Revenue and opex = base x volume index x escalation index; opex escalates off its own base, not off escalated revenue |
 | 🟨 Calc | `Calc_Tax` | Quarterly | ✅ built (single vintage, tax shield live) | Depreciation, tax, interest deduction; maintenance capex vintage (1c) |
 | 🟨 Calc | `Calc_CFADS` | Quarterly | ✅ built (no reserves) | Cash waterfall to FCFE; DSRA/MRA (1c) |
 | 🟨 Calc | `Calc_Financing_Ops` | Quarterly | ✅ built (Loop 2 live) | DSCR-locked sculpting + closed-form debt sizing; LLCR/PLCR (1c) |
@@ -44,7 +44,7 @@ Reference document for the bankable project finance model engine. Check every bu
 | 🟩 Output | `FS_Annual` | Annual | ✅ built (ops + construction) | Rolled up from Quarterly; separate construction-period annual block |
 | 🟩 Output | `Valuation_SellDown` | Annual | ⏳ Stage 1d | Standalone, read-only downstream of `FS_Annual`. Per exit-year: implied sale price (`XNPV`), seller's realized EIRR (`XIRR`), buyer's implied PIRR |
 | 🟩 Output | `Dashboard` | — | ⏳ Stage 1d | Charts + Sources & Uses table (formula-linked, not chart-derived) |
-| 🟥 Check | `Check_Control` | — | ✅ built (16 checks) | Master aggregator, direct-cell-ref pulls (no `INDIRECT`), `MODEL OK`/`ERRORS FOUND` |
+| 🟥 Check | `Check_Control` | — | ✅ built (24 checks) | Master aggregator, direct-cell-ref pulls (no `INDIRECT`), `MODEL OK`/`ERRORS FOUND` |
 
 ---
 
@@ -88,8 +88,10 @@ So there is **no bisection** (an earlier draft of this blueprint specified one �
 - `Assumptions_Periodic_*`: scenarios as **row-blocks**, time still across columns within each block
 
 ### Escalations
-- Embedded at the bottom of each Periodic sheet (not a separate sheet), resolution matches that sheet (monthly in Capex, quarterly in Ops)
-- Annual % input → within-year compounded index; drivers pick which factor applies via a selector cell
+- Embedded at the bottom of `Assumptions_Periodic_Ops`, at that sheet's quarterly resolution
+- **Rates** live on `Assumptions_Constant` (so they vary by scenario); only the **index derivation** lives on the periodic sheet
+- Annual % → within-year compounded index (`Index_Q = Index_{Q-1} × (1+annual)^(1/4)`), Q1 = 1.00 as the base period; drivers pick which factor applies via a selector cell
+- **Not built on `Assumptions_Periodic_Capex`.** Capex is entered as a nominal total with a phasing profile, so a capex escalation index would have nothing to multiply without also changing the "cumulative capex = total capex input" check. Deferred to Phase 3 where sector capex modules land — flagged rather than built as dead weight
 
 ### Returns discipline
 - `XIRR`/`XNPV` throughout — never `IRR`/`NPV`. Periods aren't uniform (monthly → quarterly → annual).
@@ -125,7 +127,7 @@ So there is **no bisection** (an earlier draft of this blueprint specified one �
 | **1a — Plumbing proof** | Single scenario, flat dummy revenue, fixed-ratio debt, zero circularity | ✅ **complete** (tasks #1–10) |
 | **Interim — Input centralization** | `Cover` + `Assumptions_Model`, rewire all `Calc_*` hardcodes to links | ✅ **complete** (task #18) |
 | **1b — Circularity** | Loop 1 + drawdown selector + construction `FS_Annual` (#11 ✅) → Loop 2 + tax shield (#12 ✅) → dirty-flag check (#13 ✅) | ✅ **complete** |
-| **1c — Scale out** | 10 scenarios + escalation library (#14) → DSRA/MRA + LC option + LLCR/PLCR + multi-vintage maintenance capex (#15) → control panel + goal-seek (#16) | pending |
+| **1c — Scale out** | 10 scenarios + escalation library (#14 ✅) → DSRA/MRA + LC option + LLCR/PLCR + multi-vintage maintenance capex (#15) → control panel + goal-seek (#16) | ⏳ in progress — #15 next |
 | **1d — Sell-down** | `Valuation_SellDown` + `Dashboard` (#17) | pending |
 
 **Dummy test case (Stage 1a validation):** $100M project, 24mo construction, 20yr ops, $15M/yr flat revenue, 70/30 debt/equity, 6% interest, 25% tax. Verified: BS balances all 80 quarters, model winds to exactly $0 at end of life, EIRR (7.16%) > PIRR (6.09%) correctly reflects leverage, EIRR moves monotonically with revenue.
@@ -140,6 +142,7 @@ So there is **no bisection** (an earlier draft of this blueprint specified one �
 - Don't bisect for debt sculpting at all — lock DSCR via formula and the debt size falls out as a PV in closed form
 - Don't discount the capped service row when computing sculpted capacity — use the uncapped basis, or the fixed point goes degenerate and silently "converges" at whatever it started from
 - Don't let any drawdown branch reference the raw gearing input instead of the solved facility — the Pari Passu branch did exactly that and pegged implied gearing to the assumption, making Loop 2 look broken while every check still passed. `Check_Control` now guards this ("Debt draws honour the solved facility")
+- Don't index another sheet with this module's own row constants — `Calc_Tax` did that and pulled Revenue while labelling it EBITDA, overstating supportable debt by 19%. Import the source module's row constants instead
 - Don't let the verification harness re-derive a quantity the workbook takes as an input — the harness computed the pari-passu split as `facility/TPC` while the sheet used the gearing input, so the two disagreed and the bug survived verification. Mirror the formula, don't reimplement the intent
 - Don't build scenario conditional-formatting highlighting now — explicitly Phase 2
 - Don't skip the feasibility pre-check in multi-scenario goal-seek — burns iterations discovering what one bound-check would show instantly

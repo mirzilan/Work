@@ -15,12 +15,18 @@ from workbook_builder import (
 ROW_DATE_HEADER = 2
 ROW_QUARTER_INDEX = 3
 
-ROW_REVENUE = 5
-ROW_OPEX = 6
-ROW_EBITDA = 7
+ROW_REV_VOLUME_INDEX = 5
+ROW_REV_ESC_INDEX = 6
+ROW_OPEX_VOLUME_INDEX = 7
+ROW_OPEX_ESC_INDEX = 8
 
-ROW_CHECK_HEADER = 11
-ROW_CHECK_YEAR1_REVENUE = 12
+ROW_REVENUE = 10
+ROW_OPEX = 11
+ROW_EBITDA = 12
+
+ROW_CHECK_HEADER = 15
+ROW_CHECK_YEAR1_REVENUE = 16
+ROW_CHECK_EBITDA_POSITIVE = 17
 
 ANNUAL_REVENUE_CELL = "B4"
 OPEX_PCT_CELL = "B9"
@@ -45,12 +51,17 @@ def build_calc_revenue_opex(wb: Workbook, timeline: Timeline, inputs: ProjectInp
 
     _label(ws, ROW_DATE_HEADER, "Period End Date")
     _label(ws, ROW_QUARTER_INDEX, "Operating Quarter #")
-    _label(ws, ROW_REVENUE, "Revenue ($)")
-    _label(ws, ROW_OPEX, "Opex ($)")
+    _label(ws, ROW_REV_VOLUME_INDEX, "Revenue Volume Index — linked from Assumptions_Periodic_Ops")
+    _label(ws, ROW_REV_ESC_INDEX, "Revenue Escalation Index — linked from Assumptions_Periodic_Ops")
+    _label(ws, ROW_OPEX_VOLUME_INDEX, "Opex Volume Index — linked from Assumptions_Periodic_Ops")
+    _label(ws, ROW_OPEX_ESC_INDEX, "Opex Escalation Index — linked from Assumptions_Periodic_Ops")
+    _label(ws, ROW_REVENUE, "Revenue ($) = base x volume index x escalation index")
+    _label(ws, ROW_OPEX, "Opex ($) = base x volume index x escalation index")
     _label(ws, ROW_EBITDA, "EBITDA ($)")
 
     ws.cell(row=ROW_CHECK_HEADER, column=1, value="Checks").font = Font(bold=True)
-    _label(ws, ROW_CHECK_YEAR1_REVENUE, "Check: Sum of first 4 quarters' revenue = Annual Revenue Input")
+    _label(ws, ROW_CHECK_YEAR1_REVENUE, "Check: Year 1 revenue = Annual Revenue Input (holds when Yr1 indices = 1.00)")
+    _label(ws, ROW_CHECK_EBITDA_POSITIVE, "Informational: # quarters with negative EBITDA")
 
     n_quarters = len(timeline.operations_quarters)
 
@@ -61,14 +72,26 @@ def build_calc_revenue_opex(wb: Workbook, timeline: Timeline, inputs: ProjectInp
         ws[f"{col}{ROW_DATE_HEADER}"].number_format = "mmm-yy"
         ws[f"{col}{ROW_QUARTER_INDEX}"] = i + 1
 
-        # Flat dummy revenue: annual input / 4, black formula (no escalation yet — Stage 1c)
+        for row, source_row in (
+            (ROW_REV_VOLUME_INDEX, 18),      # ROW_REV_ACTIVE on Assumptions_Periodic_Ops
+            (ROW_REV_ESC_INDEX, 44),         # ROW_REV_ESC_ACTIVE
+            (ROW_OPEX_VOLUME_INDEX, 31),     # ROW_OPEX_ACTIVE
+            (ROW_OPEX_ESC_INDEX, 45),        # ROW_OPEX_ESC_ACTIVE
+        ):
+            idx_cell = ws[f"{col}{row}"]
+            idx_cell.value = f"=Assumptions_Periodic_Ops!{col}{source_row}"
+            idx_cell.font = Font(color=COLOR_LINK)
+            idx_cell.number_format = "0.0000"
+
         rev_cell = ws[f"{col}{ROW_REVENUE}"]
-        rev_cell.value = f"=$B$4/4"
+        rev_cell.value = f"=$B$4/4*{col}{ROW_REV_VOLUME_INDEX}*{col}{ROW_REV_ESC_INDEX}"
         rev_cell.font = Font(color=COLOR_FORMULA)
         rev_cell.number_format = "#,##0"
 
+        # Opex escalates off its own base rather than off already-escalated revenue —
+        # otherwise revenue escalation would be double-counted in the cost line.
         opex_cell = ws[f"{col}{ROW_OPEX}"]
-        opex_cell.value = f"={col}{ROW_REVENUE}*$B$9"
+        opex_cell.value = f"=$B$4/4*$B$9*{col}{ROW_OPEX_VOLUME_INDEX}*{col}{ROW_OPEX_ESC_INDEX}"
         opex_cell.font = Font(color=COLOR_FORMULA)
         opex_cell.number_format = "#,##0"
 
@@ -86,6 +109,11 @@ def build_calc_revenue_opex(wb: Workbook, timeline: Timeline, inputs: ProjectInp
     check_cell.font = Font(color=COLOR_FORMULA)
 
     last_col = col_letter(n_quarters - 1)
+    first_col = col_letter(0)
+
+    ebitda_check = ws[f"{last_col}{ROW_CHECK_EBITDA_POSITIVE}"]
+    ebitda_check.value = f"=COUNTIF({first_col}{ROW_EBITDA}:{last_col}{ROW_EBITDA},\"<0\")"
+    ebitda_check.font = Font(color=COLOR_FORMULA)
 
     _add_named_range(wb, "RevOpex_LastCol", "Calc_Revenue_Opex", f"{last_col}1")
     _add_named_range(wb, "RevOpex_Year1Check", "Calc_Revenue_Opex", f"{q4}{ROW_CHECK_YEAR1_REVENUE}")
