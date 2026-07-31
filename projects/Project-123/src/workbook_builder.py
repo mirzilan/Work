@@ -19,7 +19,20 @@ TAB_COLOR_OUTPUT = "00B050"
 TAB_COLOR_CHECK = "FF0000"
 
 
-def new_workbook() -> Workbook:
+def new_workbook(template_path: str | None = None) -> Workbook:
+    """Without a template, a blank workbook. With one, the template's .xlsm is reopened
+    with its VBA project intact and every sheet dropped, so the builders repopulate a
+    workbook that still carries the macros. openpyxl copies vbaProject.bin verbatim —
+    verified to survive a full delete-and-rebuild of all sheets."""
+    if template_path:
+        wb = openpyxl.load_workbook(template_path, keep_vba=True)
+        for name in list(wb.sheetnames):
+            del wb[name]
+        # Stale names would collide with the ones the builders re-register.
+        for name in list(wb.defined_names):
+            del wb.defined_names[name]
+        return wb
+
     wb = openpyxl.Workbook()
     # Remove the default sheet; each builder module adds its own named sheet.
     wb.remove(wb.active)
@@ -30,7 +43,8 @@ def col_letter(period_index: int) -> str:
     return openpyxl.utils.get_column_letter(FIRST_DATA_COL + period_index)
 
 
-def build_workbook(inputs: ProjectInputs, timeline: Timeline, output_path: str) -> Workbook:
+def build_workbook(inputs: ProjectInputs, timeline: Timeline, output_path: str,
+                   template_path: str | None = None) -> Workbook:
     from cover import build_cover
     from assumptions_model import build_assumptions_model
     from assumptions_constant import build_assumptions_constant
@@ -46,7 +60,7 @@ def build_workbook(inputs: ProjectInputs, timeline: Timeline, output_path: str) 
     from fs_annual import build_fs_annual
     from check_control import build_check_control
 
-    wb = new_workbook()
+    wb = new_workbook(template_path)
     build_cover(wb, len(timeline.construction_months))
     build_assumptions_model(wb, timeline, inputs)
     build_assumptions_constant(wb, inputs)

@@ -56,6 +56,24 @@ TRACKED_INPUTS = [
 # cannot leave Check_Control pointing at a blank cell.
 ROW_FRESHNESS_FLAG = ROW_FIRST_SNAPSHOT + len(TRACKED_INPUTS) + 1
 
+# Form Control buttons live in the sheet XML, which every rebuild regenerates from
+# scratch — openpyxl carries the button *parts* across but nothing left to reference them.
+# So the buttons are redrawn by Workbook_Open from this table instead. Keeping the table
+# on the generated side means adding a macro later is a build change, not a VBA edit.
+ROW_BUTTON_SPEC_HEADER = 2
+ROW_FIRST_BUTTON_SPEC = 3
+N_BUTTON_SLOTS = 10
+COL_BUTTON_MACRO = 8   # column H
+COL_BUTTON_LABEL = 9   # column I
+
+BUTTON_SPECS = [
+    ("SolveAllCurrentScenario", "Solve All (Current Scenario)"),
+    ("SolveConstructionIDC", "Solve Construction IDC"),
+    ("SolveDebtSculpting", "Solve Debt Sculpting"),
+    ("ResetAllStagedValues", "Reset Staged Values"),
+    ("InvalidateSolveSnapshot", "Invalidate Solve"),
+]
+
 
 def build_cover(wb: Workbook, n_construction_months: int = 24) -> Worksheet:
     ws = wb.create_sheet("Cover", 0)  # index 0: first sheet, opens here
@@ -184,6 +202,7 @@ def build_cover(wb: Workbook, n_construction_months: int = 24) -> Worksheet:
     )
     ws["A24"].font = Font(italic=True, size=9)
 
+    _build_button_spec(ws, wb)
     _build_freshness_block(ws, wb, n_construction_months)
 
     _add_named_range(wb, "Cover_CircTolerance", "Cover", CELL_CIRC_TOLERANCE)
@@ -197,6 +216,29 @@ def build_cover(wb: Workbook, n_construction_months: int = 24) -> Worksheet:
     ws.column_dimensions["A"].width = 45
 
     return ws
+
+
+def _build_button_spec(ws: Worksheet, wb: Workbook) -> None:
+    from openpyxl.workbook.defined_name import DefinedName
+
+    header = ws.cell(row=ROW_BUTTON_SPEC_HEADER, column=COL_BUTTON_MACRO,
+                     value="Control Panel — Workbook_Open redraws the buttons from this table")
+    header.font = Font(bold=True, size=9)
+
+    for i in range(N_BUTTON_SLOTS):
+        row = ROW_FIRST_BUTTON_SPEC + i
+        macro, label = BUTTON_SPECS[i] if i < len(BUTTON_SPECS) else ("", "")
+        ws.cell(row=row, column=COL_BUTTON_MACRO, value=macro).font = Font(color=COLOR_INPUT, size=9)
+        ws.cell(row=row, column=COL_BUTTON_LABEL, value=label).font = Font(color=COLOR_INPUT, size=9)
+
+    last_row = ROW_FIRST_BUTTON_SPEC + N_BUTTON_SLOTS - 1
+    wb.defined_names.add(DefinedName(
+        "ButtonSpec",
+        attr_text=f"'Cover'!$H${ROW_FIRST_BUTTON_SPEC}:$I${last_row}",
+    ))
+
+    ws.column_dimensions["H"].width = 28
+    ws.column_dimensions["I"].width = 28
 
 
 def _build_freshness_block(ws: Worksheet, wb: Workbook, n_construction_months: int) -> None:

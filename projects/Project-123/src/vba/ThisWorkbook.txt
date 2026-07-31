@@ -1,0 +1,57 @@
+' ============================================================================
+'  ThisWorkbook  —  paste into the "ThisWorkbook" object, NOT a new module.
+'  (VBA editor: expand "Microsoft Excel Objects" and double-click ThisWorkbook.)
+'
+'  Why this exists: every rebuild regenerates the sheet XML from scratch, so any
+'  Form Control button drawn by hand is gone the next time the model is generated.
+'  The macro code itself survives (it lives in the VBA project, not the sheet), so
+'  the fix is to have the workbook redraw its own buttons on open, reading the
+'  macro/label table the build writes to Cover!ButtonSpec.
+'
+'  Consequence: adding a button later is a build-side change. Paste this once and
+'  it keeps working as new macros arrive.
+' ============================================================================
+
+Option Explicit
+
+Private Const BUTTON_LEFT As Double = 430
+Private Const BUTTON_TOP As Double = 20
+Private Const BUTTON_WIDTH As Double = 190
+Private Const BUTTON_HEIGHT As Double = 24
+Private Const BUTTON_GAP As Double = 5
+
+
+Private Sub Workbook_Open()
+    DrawControlPanel
+End Sub
+
+
+Public Sub DrawControlPanel()
+    Dim ws As Worksheet
+    Dim spec As Range
+    Dim macroCell As Range
+    Dim btn As Object
+    Dim drawn As Long
+    Dim topPos As Double
+
+    On Error Resume Next
+    Set ws = ThisWorkbook.Worksheets("Cover")
+    Set spec = ThisWorkbook.Names("ButtonSpec").RefersToRange
+    On Error GoTo 0
+
+    If ws Is Nothing Then Exit Sub
+    If spec Is Nothing Then Exit Sub
+
+    ws.Buttons.Delete
+
+    drawn = 0
+    For Each macroCell In spec.Columns(1).Cells
+        If Len(Trim$(CStr(macroCell.Value))) > 0 Then
+            topPos = BUTTON_TOP + drawn * (BUTTON_HEIGHT + BUTTON_GAP)
+            Set btn = ws.Buttons.Add(BUTTON_LEFT, topPos, BUTTON_WIDTH, BUTTON_HEIGHT)
+            btn.OnAction = Trim$(CStr(macroCell.Value))
+            btn.Caption = Trim$(CStr(macroCell.Offset(0, 1).Value))
+            drawn = drawn + 1
+        End If
+    Next macroCell
+End Sub
