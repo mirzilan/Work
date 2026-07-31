@@ -15,7 +15,17 @@ from com.sun.star.beans import PropertyValue
 
 import cover_refs as refs
 
-OUTPUT = Path(__file__).resolve().parent.parent / "output" / "project123_stage1c.xlsx"
+def _latest_output() -> Path:
+    """Builds are date+version tagged, so the harness resolves the newest .xlsx rather
+    than a fixed name that silently goes stale the moment a new build lands."""
+    out_dir = Path(__file__).resolve().parent.parent / "output"
+    builds = sorted(out_dir.glob("project123_stage1c_*.xlsx"))
+    if not builds:
+        raise SystemExit(f"no built workbook found in {out_dir} — run build.py first")
+    return builds[-1]
+
+
+OUTPUT = _latest_output()
 SOCKET = "socket,host=localhost,port=2002;urp;StarOffice.ComponentContext"
 
 STAGED_IDC = ("Calc_Financing_Cons", "B6")

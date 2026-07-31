@@ -211,6 +211,13 @@ Public Sub RunAllScenarios()
             seekResult = SeekTarget("Live_PIRR", "GoalSeek_TargetPIRR", "PIRR", True)
         End If
 
+        ' Snapshot before reading the master flag. The freshness check compares the live
+        ' Active Scenario against the one stored at the last solve, so without this it
+        ' reads FAIL for every scenario except whichever one happened to be stored --
+        ' dragging Check_Control to "ERRORS FOUND" and making 9 of 10 rows record a
+        ' failure that says nothing about the scenario actually being solved.
+        If converged Then RecordSolveSnapshot
+
         Application.Calculate
         Set row = anchor.Offset(s - 1, 0)
 
