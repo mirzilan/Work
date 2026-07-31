@@ -44,6 +44,7 @@ Reference document for the bankable project finance model engine. Check every bu
 | 🟩 Output | `FS_Annual` | Annual | ✅ built (ops + construction) | Rolled up from Quarterly; separate construction-period annual block |
 | 🟩 Output | `Valuation_SellDown` | Annual | ⏳ Stage 1d | Standalone, read-only downstream of `FS_Annual`. Per exit-year: implied sale price (`XNPV`), seller's realized EIRR (`XIRR`), buyer's implied PIRR |
 | 🟩 Output | `Dashboard` | — | ⏳ Stage 1d | Charts + Sources & Uses table (formula-linked, not chart-derived) |
+| 🟩 Output | `Batch_Results` | — | ✅ built | One row per scenario, written as **values** by the batch runner. Formulas would all resolve to whichever scenario was selected when the run ended |
 | 🟥 Check | `Check_Control` | — | ✅ built (31 checks) | Master aggregator, direct-cell-ref pulls (no `INDIRECT`), `MODEL OK`/`ERRORS FOUND`. Every cell ref is derived from the source module's row constants, never a literal |
 
 ---
@@ -125,11 +126,36 @@ So there is **no bisection** (an earlier draft of this blueprint specified one �
 - Workflow: I hand you plain-text module code + a defined-names spec + button instructions; you paste into the VBA editor once (`.xlsx` → Save As `.xlsm` → `Alt+F11` → Insert Module → paste → Developer tab → Insert Form Control Button → Assign Macro)
 - One-time setup per macro group; future regenerations use `keep_vba=True` to preserve what you've pasted
 
-### Control panel (top of `Assumptions_Constant`, Stage 1c)
-- **Per-scenario (fast):** Solve Construction IDC | Solve Debt Sculpting | Solve All (Current Scenario) | Goal Seek → EIRR | Goal Seek → PIRR
-- **Batch (explicit, isolated, confirmation prompt):** Run All 10 Scenarios
-- **Live display (no button needed):** Current EIRR/PIRR vs. Target, Status
-- **Multi-scenario goal-seek stopping logic:** test feasibility at the revenue bound *first* (EIRR should move monotonically) — if even the max plausible revenue can't hit target, flag infeasible immediately rather than burning iterations discovering it
+### Control panel (`Cover`, Stage 1c — ✅ built)
+Sited on `Cover`, not `Assumptions_Constant` as originally drafted: every other solve
+setting already lives there, and the buttons can only be drawn on one sheet, so splitting
+the panel from its own buttons would have been worse than moving it.
+
+- **Per-scenario:** Solve All (Current Scenario) | Goal Seek → EIRR | Goal Seek → PIRR | Solve Construction IDC | Solve Debt Sculpting | Reset | Invalidate Solve
+- **Batch (confirmation prompt):** Run All 10 Scenarios, with a `Batch Mode` selector — Solve Only (non-destructive) or Solve + Goal Seek, which **overwrites every scenario's revenue**
+- **Live display (no button needed):** Current EIRR/PIRR vs Target, on-target flag, plus the TPC / facility / gearing / min DSCR / min LLCR readings the batch runner records
+
+**Goal seek is hand-rolled, not Excel's.** Built-in Goal Seek only recalculates; this model
+needs both staged cells re-converged after any input moves, so built-in would read an IRR
+computed off stale staged values and converge confidently on the wrong revenue. Each trial
+revenue therefore costs a full silent solve.
+
+**Bisection, not secant or Newton.** EIRR is monotone in revenue but not smooth — the Max
+Gearing cap and the DSCR floor each put a kink in the curve, and a derivative-based step
+can jump a kink and diverge. Bisection only needs the root bracketed, which the bound check
+establishes.
+
+**Feasibility at the bounds first**, before any bisection: two solves settle whether the
+target is reachable and which side it is out on, instead of discovering it after the full
+iteration budget. Verified to exit at *zero* bisection iterations on both out-of-range
+paths, restoring the original revenue.
+
+Measured on the dummy case: monotone across the whole 0.5x–2.0x band, 7–11 bisection
+iterations per solve against a budget of 60.
+
+**The driver is the active scenario's own revenue cell** on `Assumptions_Constant` — never
+the Active column, which is an `INDEX` formula the macro would overwrite with a constant,
+silently severing every scenario from the selector.
 
 ---
 
@@ -140,7 +166,7 @@ So there is **no bisection** (an earlier draft of this blueprint specified one �
 | **1a — Plumbing proof** | Single scenario, flat dummy revenue, fixed-ratio debt, zero circularity | ✅ **complete** (tasks #1–10) |
 | **Interim — Input centralization** | `Cover` + `Assumptions_Model`, rewire all `Calc_*` hardcodes to links | ✅ **complete** (task #18) |
 | **1b — Circularity** | Loop 1 + drawdown selector + construction `FS_Annual` (#11 ✅) → Loop 2 + tax shield (#12 ✅) → dirty-flag check (#13 ✅) | ✅ **complete** |
-| **1c — Scale out** | 10 scenarios + escalation library (#14 ✅) → DSRA/MRA + LC option + LLCR/PLCR + multi-vintage maintenance capex (#15 ✅) → control panel + goal-seek (#16) | ⏳ in progress — #16 next |
+| **1c — Scale out** | 10 scenarios + escalation library (#14 ✅) → DSRA/MRA + LC option + LLCR/PLCR + multi-vintage maintenance capex (#15 ✅) → control panel + goal-seek (#16 ✅) | ✅ **complete** |
 | **1d — Sell-down** | `Valuation_SellDown` + `Dashboard` (#17) | pending |
 
 **Dummy test case (Stage 1a validation):** $100M project, 24mo construction, 20yr ops, $15M/yr flat revenue, 70/30 debt/equity, 6% interest, 25% tax. Verified: BS balances all 80 quarters, model winds to exactly $0 at end of life, EIRR (7.16%) > PIRR (6.09%) correctly reflects leverage, EIRR moves monotonically with revenue.
@@ -162,4 +188,7 @@ So there is **no bisection** (an earlier draft of this blueprint specified one �
 - Don't trust VBA-solved values without the dirty-flag check — stale copy-pasted numbers look identical to fresh ones
 - Don't move a row on an input sheet without checking who indexes it by literal. `Assumptions_Model`'s phasing block shifted two rows for the new resolved drivers and `Calc_Capex` still pointed at the old row — phasing read as zero, so capex, TPC, debt and both IRRs all collapsed to zero while most checks still said OK. Every cross-sheet row reference now comes from the source module's constant
 - Don't add a cost that depends on debt service into the tax computation — see the LC fee note above. Anything feeding `Calc_Tax` must be upstream of debt sizing, or it closes a loop with no breaker
+- Don't emit a post-2007 Excel function from openpyxl without the `_xlfn.` prefix. `MINIFS` was written bare, resolved to nothing, and `IFERROR` turned that into a clean-looking **0.000 min LLCR** — a wrong number that reads as a real one. Prefer functions old enough not to need the prefix: `SMALL(range, COUNTIF(range,"<=0")+1)` gets the smallest positive entry with no prefix and no array formula
+- Don't wrap a formula in `IFERROR` and assume a plausible result means it worked — that is what hid the `MINIFS` failure. Cross-check any new summary cell against the row it summarises
+- Don't let goal seek write to an Active/resolved cell. Those hold `INDEX` formulas; a macro writing a constant there detaches the whole scenario machinery from its selector, and nothing checks for it
 - Don't write a check that is true by construction. "MRA balance ≥ MRA target" was tautological (the balance *is* the target); it was replaced with "prior quarter's balance ≥ this quarter's capex", which actually fails if the lookforward window is wired backwards

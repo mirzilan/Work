@@ -58,10 +58,17 @@ def build_workbook(inputs: ProjectInputs, timeline: Timeline, output_path: str,
     from calc_cfads import build_calc_cfads
     from fs_quarterly import build_fs_quarterly
     from fs_annual import build_fs_annual
+    from batch_results import build_batch_results
     from check_control import build_check_control
 
+
+    n_quarters = len(timeline.operations_quarters)
+    tenor_quarters = min(inputs.financing.debt_tenor_years * 4, n_quarters)
+
     wb = new_workbook(template_path)
-    build_cover(wb, len(timeline.construction_months))
+    build_cover(wb, len(timeline.construction_months),
+                tenor_end_col=col_letter(tenor_quarters - 1),
+                n_operating_quarters=n_quarters)
     build_assumptions_model(wb, timeline, inputs)
     build_assumptions_constant(wb, inputs)
     build_assumptions_periodic_capex(wb, timeline, inputs)
@@ -74,6 +81,7 @@ def build_workbook(inputs: ProjectInputs, timeline: Timeline, output_path: str,
     build_calc_cfads(wb, timeline, inputs)
     build_fs_quarterly(wb, timeline, inputs)
     build_fs_annual(wb, timeline, inputs)
+    build_batch_results(wb)
     build_check_control(wb, timeline)
     wb.save(output_path)
     return wb

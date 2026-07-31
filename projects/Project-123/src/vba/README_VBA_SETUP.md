@@ -26,9 +26,9 @@ is a build-side change, not something you paste.
    `.xlsx`. Name it `project123_template.xlsm`.
 3. `Alt + F11` to open the VBA editor.
 4. **File -> Import File...** and select each of `mod_Loop1_IDC.bas`,
-   `mod_Loop2_DebtSizing.bas` and `mod_SolveFreshness.bas`. Importing rather than pasting
-   keeps the module names. All three are required — the solve macros call into the
-   freshness module.
+   `mod_Loop2_DebtSizing.bas`, `mod_SolveFreshness.bas` and `mod_GoalSeek.bas`. Importing
+   rather than pasting keeps the module names. All four are required — the solve macros
+   call into the freshness module, and goal seek calls into the Loop 2 module.
 5. In the project tree on the left, expand **Microsoft Excel Objects** and double-click
    **ThisWorkbook**. Paste the whole of `ThisWorkbook.txt` into the code pane that opens.
    This one is a code-behind object, *not* a module — importing it as a module will not
@@ -40,6 +40,18 @@ is a build-side change, not something you paste.
 
 If the Developer tab is not visible: **File -> Options -> Customize Ribbon -> tick
 Developer**. You no longer need it for buttons, but it is where the macro list lives.
+
+## Updating a template when the macro code changes
+
+Only needed when a task adds or changes macro logic. To replace a module:
+
+1. `Alt + F11`, right-click the module in the tree, **Remove <name>**, answer **No** to
+   the export prompt.
+2. **File -> Import File...** and pick the new version.
+3. Save, close, reopen, and send the `.xlsm` back.
+
+Buttons need no attention — `Workbook_Open` redraws them from `Cover!ButtonSpec`, so a
+new macro appears as a button as soon as the build lists it.
 
 ## Rebuilding from then on
 
@@ -56,10 +68,44 @@ LibreOffice verification harness.
 | Button | Macro | What it does | When |
 |---|---|---|---|
 | **Solve All (Current Scenario)** | `SolveAllCurrentScenario` | Alternates Loop 1 and Loop 2 until both converge, then stamps the solve snapshot | **The one you press.** After any assumption change |
+| Goal Seek -> Target EIRR | `GoalSeekEIRR` | Solves the active scenario's Annual Revenue for the target EIRR on `Cover` | "What revenue do we need to clear our hurdle?" |
+| Goal Seek -> Target PIRR | `GoalSeekPIRR` | Same, against the target PIRR | Unlevered version of the same question |
+| Run All 10 Scenarios (Batch) | `RunAllScenarios` | Walks every scenario, solves (and optionally goal-seeks) each, writes `Batch_Results` | Producing the scenario comparison table |
 | Solve Construction IDC | `SolveConstructionIDC` | Loop 1 only — IDC / debt balance / Total Project Cost | Diagnosing the construction loop alone |
 | Solve Debt Sculpting | `SolveDebtSculpting` | Loop 2 only — debt size / interest / tax / CFADS / capacity | Diagnosing the operations loop alone |
 | Reset Staged Values | `ResetAllStagedValues` | Zeroes both staged cells, clears the snapshot | The solve has wandered and you want a clean start |
 | Invalidate Solve | `InvalidateSolveSnapshot` | Clears the snapshot only, forcing `RE-RUN SOLVE` | Forcing the dirty flag on when you suspect stale numbers |
+
+### Goal seek
+
+The driver is **Annual Revenue on the active scenario's own column** of
+`Assumptions_Constant` — never the Active column, which is an `INDEX` formula the macro
+must not overwrite.
+
+Excel's built-in Goal Seek cannot be used: it only recalculates, and this model needs the
+two staged cells re-converged after every input change. Built-in Goal Seek would read an
+IRR computed off stale staged values. So each trial revenue costs a full silent solve, and
+the search is bisection — EIRR is monotone in revenue but has kinks where the Max Gearing
+cap and the DSCR floor bind, and a derivative step can jump a kink and diverge.
+
+Bounds are **multiples of the scenario's current revenue** (default 0.50x to 2.00x), so one
+setting works across all ten. Feasibility is tested at both bounds *first*: if the target is
+out of range you get `INFEASIBLE` or `BELOW RANGE` after two solves rather than after sixty,
+and the revenue is put back where it was.
+
+Measured on the dummy case: 7-11 bisection iterations per solve, against a budget of 60.
+
+### Batch runner
+
+`Batch Mode` on `Cover` decides what each scenario gets:
+
+- **Solve Only** — non-destructive; just solves and records.
+- **Solve + Goal Seek EIRR / PIRR** — **overwrites every scenario's Annual Revenue** with
+  the value that hits the target. Not undoable, which is why it asks first.
+
+Results land on `Batch_Results` as values, not formulas — a formula would recalculate to
+whichever scenario is selected when the run ends, making all ten rows identical. The
+scenario selector is restored when the run finishes, including after an error.
 
 The two loops are coupled — debt size sets the construction facility, which moves IDC,
 which moves Total Project Cost, depreciation, tax, CFADS and therefore capacity — so
@@ -70,7 +116,7 @@ macros are for diagnosis, not normal use.
 
 Check two cells before believing anything:
 
-- `Cover!B29` should read **SOLVED - current**. If it says `RE-RUN SOLVE - assumptions
+- `Cover!B54` should read **SOLVED - current**. If it says `RE-RUN SOLVE - assumptions
   changed`, what is on screen is stale, and the table below it names the input that moved.
 - `Check_Control!B3` should read **MODEL OK**.
 
@@ -112,11 +158,20 @@ These are created by the Python build — do not rename them.
 | `Cover_DSRAMethod` | `Cover!$B$23` | Cash Funded / LC-Backed |
 | `ActiveScenario` | `Cover!$B$20` | Scenario selector, 1-10 |
 | `ButtonSpec` | `Cover!$H$3:$I$12` | Macro/label table `Workbook_Open` draws buttons from |
-| `SnapshotLive` | `Cover!$B$32:$B$48` | Live value of every tracked input |
-| `SnapshotStored` | `Cover!$C$32:$C$48` | Those values as at the last solve |
-| `LastSolvedStamp` | `Cover!$B$28` | Timestamp written on each successful solve |
-| `SolveStatus` | `Cover!$B$29` | `SOLVED - current` / `RE-RUN SOLVE ...` |
-| `SolveFreshnessFlag` | `Cover!$D$50` | 1/0 flag `Check_Control` pulls |
+| `ScenarioRevenueRow` | `Assumptions_Constant!$C$11:$L$11` | Goal seek writes into the active scenario's cell in this row |
+| `GoalSeek_TargetEIRR` / `_TargetPIRR` | `Cover!$B$27` / `$B$28` | Targets the goal seek aims at |
+| `GoalSeek_MinMultiple` / `_MaxMultiple` | `Cover!$B$37` / `$B$38` | Search bounds, as multiples of current revenue |
+| `GoalSeek_Tolerance` / `_MaxIterations` | `Cover!$B$39` / `$B$40` | Stopping conditions |
+| `GoalSeek_Status` | `Cover!$B$33` | Result text the macro writes |
+| `Cover_BatchMode` | `Cover!$B$41` | Solve Only / Solve + Goal Seek EIRR / PIRR |
+| `Live_EIRR` / `Live_PIRR` | `Cover!$B$29` / `$B$30` | Live returns the goal seek reads |
+| `Live_TPC`, `Live_DebtFacility`, `Live_Gearing`, `Live_MinDSCR`, `Live_MinLLCR` | `Cover!$B$45:$B$49` | Readings the batch runner records per scenario |
+| `BatchResults_Anchor` | `Batch_Results!$A$7` | First scenario row the batch runner writes to |
+| `SnapshotLive` | `Cover!$B$57:$B$73` | Live value of every tracked input |
+| `SnapshotStored` | `Cover!$C$57:$C$73` | Those values as at the last solve |
+| `LastSolvedStamp` | `Cover!$B$53` | Timestamp written on each successful solve |
+| `SolveStatus` | `Cover!$B$54` | `SOLVED - current` / `RE-RUN SOLVE ...` |
+| `SolveFreshnessFlag` | `Cover!$D$75` | 1/0 flag `Check_Control` pulls |
 
 ## What "solved" looks like
 

@@ -14,6 +14,16 @@ Option Explicit
 ' What remains circular is the tax shield: debt size -> interest -> tax -> CFADS ->
 ' capacity -> debt size. StagedDebtSize breaks that chain, and this macro drives it to
 ' its fixed point. Convergence is geometric and typically settles in ~7 iterations.
+'
+' The solve is split in two: SolveAllSilent does the work and returns a result, and
+' SolveAllCurrentScenario wraps it with the message box. Goal seek calls the silent one
+' dozens of times per run, and a dialog per call would make it unusable.
+
+' Diagnostics from the last SolveAllSilent, for whichever caller wants to report them.
+Public LastSolvePasses As Long
+Public LastIDCGap As Double
+Public LastDebtGap As Double
+
 
 Public Sub SolveDebtSculpting()
     Dim solved As Boolean
@@ -25,16 +35,49 @@ End Sub
 ' construction facility, which changes IDC, which changes Total Project Cost and
 ' therefore depreciation, tax, CFADS and capacity. Alternating the two fixed points
 ' until both gaps close is the reliable way to land on a mutually consistent answer.
-Public Sub SolveAllCurrentScenario()
+'
+' No UI and no calculation-mode juggling: the caller owns both, because goal seek runs
+' this inside its own manual-calculation block and must not have it handed back.
+Public Function SolveAllSilent() As Boolean
     Dim i As Long
     Dim maxOuter As Long
     Dim tolerance As Double
-    Dim prevCalcMode As XlCalculation
-    Dim idcGap As Double
-    Dim debtGap As Double
+    Dim sculpting As Boolean
+
+    SolveAllSilent = False
+    LastSolvePasses = 0
 
     tolerance = Range("Cover_CircTolerance").Value
     maxOuter = Range("Cover_MaxIterations").Value
+    sculpting = (Range("Cover_DebtSizingMode").Value = "DSCR Sculpted")
+
+    For i = 1 To maxOuter
+        ConvergeIDC
+        ConvergeDebtSize False
+
+        Application.Calculate
+        LastIDCGap = Abs(Range("IDCConvergenceGap").Value)
+        LastDebtGap = Abs(Range("DebtSizeConvergenceGap").Value)
+        LastSolvePasses = i
+
+        ' In Fixed Gearing mode nothing drives StagedDebtSize toward capacity, so the
+        ' debt gap never closes and is not a convergence condition -- only IDC is.
+        If LastIDCGap <= tolerance Then
+            If Not sculpting Then
+                SolveAllSilent = True
+                Exit Function
+            ElseIf LastDebtGap <= Range("Cover_DebtSizingTolerance").Value Then
+                SolveAllSilent = True
+                Exit Function
+            End If
+        End If
+    Next i
+End Function
+
+
+Public Sub SolveAllCurrentScenario()
+    Dim prevCalcMode As XlCalculation
+    Dim converged As Boolean
 
     prevCalcMode = Application.Calculation
     Application.ScreenUpdating = False
@@ -42,31 +85,24 @@ Public Sub SolveAllCurrentScenario()
 
     On Error GoTo CleanUp
 
-    For i = 1 To maxOuter
-        ConvergeIDC
-        ConvergeDebtSize False
+    converged = SolveAllSilent()
 
-        Application.Calculate
-        idcGap = Abs(Range("IDCConvergenceGap").Value)
-        debtGap = Abs(Range("DebtSizeConvergenceGap").Value)
-
-        If idcGap <= tolerance And debtGap <= Range("Cover_DebtSizingTolerance").Value Then
-            RecordSolveSnapshot
-            MsgBox "Solved in " & i & " outer pass(es)." & vbCrLf & vbCrLf & _
-                   "IDC: " & Format(Range("CalculatedIDC").Value, "#,##0") & _
-                   "  (gap " & Format(idcGap, "#,##0.00") & ")" & vbCrLf & _
-                   "Debt size: " & Format(Range("StagedDebtSize").Value, "#,##0") & _
-                   "  (gap " & Format(debtGap, "#,##0.00") & ")" & vbCrLf & _
-                   "Implied gearing: " & Format(Range("ImpliedGearing").Value, "0.00%"), _
-                   vbInformation, "Solve All -- Converged"
-            GoTo CleanUp
-        End If
-    Next i
-
-    MsgBox "Did NOT fully converge in " & maxOuter & " outer passes." & vbCrLf & _
-           "IDC gap: " & Format(idcGap, "#,##0.00") & vbCrLf & _
-           "Debt size gap: " & Format(debtGap, "#,##0.00"), _
-           vbExclamation, "Solve All -- Not Converged"
+    If converged Then
+        RecordSolveSnapshot
+        MsgBox "Solved in " & LastSolvePasses & " outer pass(es)." & vbCrLf & vbCrLf & _
+               "IDC: " & Format(Range("CalculatedIDC").Value, "#,##0") & _
+               "  (gap " & Format(LastIDCGap, "#,##0.00") & ")" & vbCrLf & _
+               "Debt size: " & Format(Range("StagedDebtSize").Value, "#,##0") & _
+               "  (gap " & Format(LastDebtGap, "#,##0.00") & ")" & vbCrLf & _
+               "Implied gearing: " & Format(Range("ImpliedGearing").Value, "0.00%"), _
+               vbInformation, "Solve All -- Converged"
+    Else
+        MsgBox "Did NOT fully converge in " & Range("Cover_MaxIterations").Value & _
+               " outer passes." & vbCrLf & _
+               "IDC gap: " & Format(LastIDCGap, "#,##0.00") & vbCrLf & _
+               "Debt size gap: " & Format(LastDebtGap, "#,##0.00"), _
+               vbExclamation, "Solve All -- Not Converged"
+    End If
 
 CleanUp:
     Application.Calculation = prevCalcMode

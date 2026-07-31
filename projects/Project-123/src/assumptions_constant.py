@@ -128,6 +128,17 @@ def build_assumptions_constant(wb: Workbook, inputs: ProjectInputs) -> Worksheet
     _name(wb, "Const_ActiveResolvesCheck", "Assumptions_Constant", f"{COL_ACTIVE}{ROW_CHECK_ACTIVE_RESOLVES}")
     _name(wb, "Const_AllPopulatedCheck", "Assumptions_Constant", f"{COL_ACTIVE}{ROW_CHECK_ALL_POPULATED}")
 
+    # The goal-seek macro writes revenue into the *scenario* column, never the Active
+    # column (which is an INDEX formula). Naming the whole row lets the macro pick the
+    # right cell off the scenario selector without hardcoding a row or column.
+    from openpyxl.workbook.defined_name import DefinedName
+
+    wb.defined_names.add(DefinedName(
+        "ScenarioRevenueRow",
+        attr_text=(f"'Assumptions_Constant'!${first_scenario_col}${ROW_ANNUAL_REVENUE}"
+                   f":${last_scenario_col}${ROW_ANNUAL_REVENUE}"),
+    ))
+
     ws.column_dimensions["A"].width = 34
     ws.freeze_panes = ws["C6"]
 
