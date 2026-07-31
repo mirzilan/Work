@@ -42,8 +42,8 @@ Reference document for the bankable project finance model engine. Check every bu
 | 🟨 Calc | `Calc_Financing_Ops` | Quarterly | ✅ built (Loop 2, DSRA, LLCR/PLCR live) | DSCR-locked sculpting + closed-form debt sizing; DSRA (cash-funded or LC-backed); LLCR/PLCR |
 | 🟩 Output | `FS_Quarterly` | Quarterly | ✅ built | 3-statements, FCFF/FCFE built once, PIRR/EIRR via `XIRR` |
 | 🟩 Output | `FS_Annual` | Annual | ✅ built (ops + construction) | Rolled up from Quarterly; separate construction-period annual block |
-| 🟩 Output | `Valuation_SellDown` | Annual | ⏳ Stage 1d | Standalone, read-only downstream of `FS_Annual`. Per exit-year: implied sale price (`XNPV`), seller's realized EIRR (`XIRR`), buyer's implied PIRR |
-| 🟩 Output | `Dashboard` | — | ⏳ Stage 1d | Charts + Sources & Uses table (formula-linked, not chart-derived) |
+| 🟩 Output | `Valuation_SellDown` | Annual | ✅ built | Standalone, read-only downstream of `FS_Annual`. Per exit-year: implied sale price (SUMPRODUCT-based XNPV-equivalent), seller's realized EIRR (`XIRR`), buyer's implied PIRR (`XIRR`) |
+| 🟩 Output | `Dashboard` | — | ✅ built | Sheet 1 (opens here). Traffic-light Model Status + Solve Freshness, headline EIRR/PIRR vs Target, link-only scenario comparison table from `Batch_Results` |
 | 🟩 Output | `Batch_Results` | — | ✅ built | One row per scenario, written as **values** by the batch runner. Formulas would all resolve to whichever scenario was selected when the run ended |
 | 🟥 Check | `Check_Control` | — | ✅ built (31 checks) | Master aggregator, direct-cell-ref pulls (no `INDIRECT`), `MODEL OK`/`ERRORS FOUND`. Every cell ref is derived from the source module's row constants, never a literal |
 
@@ -167,7 +167,7 @@ silently severing every scenario from the selector.
 | **Interim — Input centralization** | `Cover` + `Assumptions_Model`, rewire all `Calc_*` hardcodes to links | ✅ **complete** (task #18) |
 | **1b — Circularity** | Loop 1 + drawdown selector + construction `FS_Annual` (#11 ✅) → Loop 2 + tax shield (#12 ✅) → dirty-flag check (#13 ✅) | ✅ **complete** |
 | **1c — Scale out** | 10 scenarios + escalation library (#14 ✅) → DSRA/MRA + LC option + LLCR/PLCR + multi-vintage maintenance capex (#15 ✅) → control panel + goal-seek (#16 ✅) | ✅ **complete** |
-| **1d — Sell-down** | `Valuation_SellDown` + `Dashboard` (#17) | pending |
+| **1d — Sell-down** | `Valuation_SellDown` + `Dashboard` (#22) | ✅ **complete** |
 
 **Dummy test case (Stage 1a validation):** $100M project, 24mo construction, 20yr ops, $15M/yr flat revenue, 70/30 debt/equity, 6% interest, 25% tax. Verified: BS balances all 80 quarters, model winds to exactly $0 at end of life, EIRR (7.16%) > PIRR (6.09%) correctly reflects leverage, EIRR moves monotonically with revenue.
 
