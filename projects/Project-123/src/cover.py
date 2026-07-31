@@ -107,15 +107,15 @@ COL_BUTTON_MACRO = 8   # column H
 COL_BUTTON_LABEL = 9   # column I
 
 BUTTON_SPECS = [
-    ("SolveAllCurrentScenario", "Solve All (Current Scenario)"),
-    ("GoalSeekEIRR", "Goal Seek -> Target EIRR"),
-    ("GoalSeekPIRR", "Goal Seek -> Target PIRR"),
+    ("SolveAllCurrentScenario", "[Everyday] Solve All (Current Scenario)"),
+    ("GoalSeekEIRR", "[Everyday] Goal Seek -> Target EIRR"),
+    ("GoalSeekPIRR", "[Everyday] Goal Seek -> Target PIRR"),
     None,
-    ("RunAllScenarios", "Run All 10 Scenarios (Batch)"),
+    ("RunAllScenarios", "[Batch] Run All 10 Scenarios"),
     None,
-    ("SolveConstructionIDC", "Debug: Solve Construction IDC"),
-    ("SolveDebtSculpting", "Debug: Solve Debt Sculpting"),
-    ("ResetAllStagedValues", "Recovery: Reset Staged Values"),
+    ("SolveConstructionIDC", "[Debug] Solve Construction IDC"),
+    ("SolveDebtSculpting", "[Debug] Solve Debt Sculpting"),
+    ("ResetAllStagedValues", "[Recovery] Reset Staged Values"),
 ]
 
 
@@ -153,9 +153,9 @@ def build_cover(wb: Workbook, n_construction_months: int = 24,
     status_cell.font = Font(bold=True, size=14)
 
     ws["A11"] = (
-        "Buttons (top-right): Tier 1 everyday (Solve All, Goal Seek EIRR/PIRR) -- "
-        "gap -- Tier 2 batch (Run All 10 Scenarios) -- gap -- Tier 3 debug/recovery "
-        "(Solve Construction IDC, Solve Debt Sculpting, Reset Staged Values)."
+        "Buttons (top-right) are tagged by tier: [Everyday] Solve All / Goal Seek EIRR / "
+        "Goal Seek PIRR -- gap -- [Batch] Run All 10 Scenarios -- gap -- "
+        "[Debug] the individual Loop 1/Loop 2 solves, [Recovery] Reset Staged Values."
     )
     ws["A11"].font = Font(italic=True)
     ws["A12"] = "Live status just above the buttons is a one-glance read of Check_Control + Solve Freshness."

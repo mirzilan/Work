@@ -16,7 +16,7 @@ Option Explicit
 
 Private Const BUTTON_LEFT As Double = 430
 Private Const BUTTON_TOP As Double = 20
-Private Const BUTTON_WIDTH As Double = 190
+Private Const BUTTON_WIDTH As Double = 215  ' widened for the "[Tier]" caption prefixes
 Private Const BUTTON_HEIGHT As Double = 24
 Private Const BUTTON_GAP As Double = 5
 
