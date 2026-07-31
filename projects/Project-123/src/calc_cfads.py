@@ -3,6 +3,7 @@ from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.workbook import Workbook
 
 import calc_financing_ops as fin_ops
+import cover_refs as refs
 import calc_revenue_opex as rev_opex
 import calc_tax as tax
 from inputs import ProjectInputs
@@ -29,13 +30,31 @@ ROW_MRA_TARGET = 12
 ROW_MRA_BALANCE = 13
 ROW_MRA_FUNDING = 14
 
-ROW_FCFE = 16
-ROW_FCFF = 17           # unlevered: CFADS less maintenance capex, built once and reused
+ROW_CAFD = 16           # cash available for distribution, before the buffer and lock-up
 
-ROW_CHECK_HEADER = 20
-ROW_CHECK_FCFE_NOT_BELOW_ZERO_COUNT = 21  # informational, not a hard fail
-ROW_CHECK_MRA_WINDS_DOWN = 22
-ROW_CHECK_MRA_FUNDS_CAPEX = 23
+# Distributions used to be 100% of CAFD including its negatives, which silently turned
+# every shortfall into an equity call. The buffer absorbs the timing (the MRA traps a
+# whole overhaul four quarters before it lands), the lock-up blocks distributions on weak
+# DSCR, and anything still short shows up on its own line rather than as a negative
+# dividend.
+ROW_DSCR = 18
+ROW_LOCKUP_FLAG = 19
+ROW_BUFFER_TARGET = 20
+ROW_BUFFER_OPENING = 21
+ROW_DISTRIBUTION = 22
+ROW_EQUITY_INJECTION = 23
+ROW_BUFFER_CLOSING = 24
+
+ROW_FCFE = 26           # distributions less equity injections
+ROW_FCFF = 27           # unlevered: CFADS less maintenance capex, built once and reused
+
+ROW_CHECK_HEADER = 30
+ROW_CHECK_FCFE_NOT_BELOW_ZERO_COUNT = 31  # informational, not a hard fail
+ROW_CHECK_MRA_WINDS_DOWN = 32
+ROW_CHECK_MRA_FUNDS_CAPEX = 33
+ROW_CHECK_BUFFER_NON_NEGATIVE = 34
+ROW_CHECK_CASH_RECONCILES = 35
+ROW_CHECK_EQUITY_INJECTIONS = 36          # informational: how many quarters needed one
 
 
 def build_calc_cfads(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) -> Worksheet:
@@ -58,13 +77,24 @@ def build_calc_cfads(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) ->
     _label(ws, ROW_MRA_TARGET, f"MRA Target ($) = next {mra_quarters} quarters' maintenance capex")
     _label(ws, ROW_MRA_BALANCE, "MRA Balance ($)")
     _label(ws, ROW_MRA_FUNDING, "MRA Funding/(Release) ($) — releases as the spend it pre-funded lands")
-    _label(ws, ROW_FCFE, "FCFE ($) = CFADS - Debt Service - DSRA - MRA - Maintenance Capex")
+    _label(ws, ROW_CAFD, "Cash Available for Distribution ($) — after debt service and reserves")
+    _label(ws, ROW_DSCR, "DSCR (achieved) — linked from Calc_Financing_Ops")
+    _label(ws, ROW_LOCKUP_FLAG, "Distributions Locked Up? (1 = blocked by DSCR trigger)")
+    _label(ws, ROW_BUFFER_TARGET, "Target Cash Buffer ($) = target quarters x quarterly opex")
+    _label(ws, ROW_BUFFER_OPENING, "Cash Buffer, Opening ($)")
+    _label(ws, ROW_DISTRIBUTION, "Distribution to Equity ($)")
+    _label(ws, ROW_EQUITY_INJECTION, "Equity Injection Required ($) — shortfall the buffer cannot cover")
+    _label(ws, ROW_BUFFER_CLOSING, "Cash Buffer, Closing ($)")
+    _label(ws, ROW_FCFE, "FCFE ($) = Distributions less Equity Injections")
     _label(ws, ROW_FCFF, "FCFF ($) = CFADS - Maintenance Capex (unlevered)")
 
     ws.cell(row=ROW_CHECK_HEADER, column=1, value="Checks").font = Font(bold=True)
     _label(ws, ROW_CHECK_FCFE_NOT_BELOW_ZERO_COUNT, "Informational: # of quarters with negative FCFE")
     _label(ws, ROW_CHECK_MRA_WINDS_DOWN, "Check: MRA fully released by end of life (net funding = 0)")
     _label(ws, ROW_CHECK_MRA_FUNDS_CAPEX, "Check: MRA pre-funds each quarter's spend (prior balance >= capex)")
+    _label(ws, ROW_CHECK_BUFFER_NON_NEGATIVE, "Check: Cash buffer never negative")
+    _label(ws, ROW_CHECK_CASH_RECONCILES, "Check: Sum of CAFD = distributions - injections + closing buffer")
+    _label(ws, ROW_CHECK_EQUITY_INJECTIONS, "Informational: # of quarters needing an equity injection")
 
     for i, period in enumerate(timeline.operations_quarters):
         col = col_letter(i)
@@ -105,9 +135,48 @@ def build_calc_cfads(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) ->
 
         # Maintenance capex is a separate line from the MRA movement: the reserve releases
         # cash in the quarter the spend lands, and netting the two would hide both.
-        _formula(ws, col, ROW_FCFE,
+        _formula(ws, col, ROW_CAFD,
                  f"={col}{ROW_CFADS_POST_DS}-{col}{ROW_DSRA_CASH_COST}"
                  f"-{col}{ROW_MRA_FUNDING}-{col}{ROW_MAINT_CAPEX}")
+
+        dscr_cell = ws[f"{col}{ROW_DSCR}"]
+        dscr_cell.value = f"=Calc_Financing_Ops!{col}{fin_ops.ROW_DSCR}"
+        dscr_cell.font = Font(color=COLOR_LINK)
+        dscr_cell.number_format = "0.00x"
+
+        # Post-tenor the DSCR row is blank, which must read as "not locked" rather than
+        # as a zero that traps cash for the rest of the project's life.
+        _formula(ws, col, ROW_LOCKUP_FLAG,
+                 f"=IF(N({col}{ROW_DSCR})=0,0,IF({col}{ROW_DSCR}<Cover!{refs.ABS_LOCKUP_DSCR},1,0))")
+
+        # There is no going concern past the horizon, so the final quarter holds nothing
+        # back. Without this the buffer is stranded at end of life — value that was never
+        # returned to equity, quietly depressing EIRR.
+        if i == n_quarters - 1:
+            _formula(ws, col, ROW_BUFFER_TARGET, "=0")
+        else:
+            _formula(ws, col, ROW_BUFFER_TARGET,
+                     f"=Cover!{refs.ABS_CASH_BUFFER_TARGET}*Calc_Revenue_Opex!{col}{rev_opex.ROW_OPEX}")
+
+        if prev is None:
+            _formula(ws, col, ROW_BUFFER_OPENING, "=0")
+        else:
+            _formula(ws, col, ROW_BUFFER_OPENING, f"={prev}{ROW_BUFFER_CLOSING}")
+
+        available = f"({col}{ROW_BUFFER_OPENING}+{col}{ROW_CAFD})"
+        # Distribute only what is above the target buffer, and nothing at all while locked
+        # up. Retaining to the target is what gives later quarters something to draw on.
+        _formula(ws, col, ROW_DISTRIBUTION,
+                 f"=IF({col}{ROW_LOCKUP_FLAG}=1,0,"
+                 f"MAX(0,{available}-{col}{ROW_BUFFER_TARGET}))")
+        # Whatever the buffer still cannot cover is a genuine call on shareholders. Naming
+        # it is the whole point — before this it hid inside a negative dividend.
+        _formula(ws, col, ROW_EQUITY_INJECTION, f"=MAX(0,-{available})")
+        _formula(ws, col, ROW_BUFFER_CLOSING,
+                 f"={available}-{col}{ROW_DISTRIBUTION}+{col}{ROW_EQUITY_INJECTION}")
+
+        _formula(ws, col, ROW_FCFE,
+                 f"={col}{ROW_DISTRIBUTION}-{col}{ROW_EQUITY_INJECTION}")
         _formula(ws, col, ROW_FCFF, f"={col}{ROW_CFADS}-{col}{ROW_MAINT_CAPEX}")
 
     last_col = col_letter(n_quarters - 1)
@@ -137,10 +206,36 @@ def build_calc_cfads(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) ->
     )
     funds_capex.font = Font(color=COLOR_FORMULA)
 
+    buffer_ok = ws[f"{last_col}{ROW_CHECK_BUFFER_NON_NEGATIVE}"]
+    buffer_ok.value = (
+        f"=IF(MIN({first_col}{ROW_BUFFER_CLOSING}:{last_col}{ROW_BUFFER_CLOSING})>=-0.01,1,0)"
+    )
+    buffer_ok.font = Font(color=COLOR_FORMULA)
+
+    # Every dollar of CAFD is either distributed, offset by an injection, or still sitting
+    # in the buffer. If those three do not tie, cash is being created or destroyed.
+    reconciles = ws[f"{last_col}{ROW_CHECK_CASH_RECONCILES}"]
+    reconciles.value = (
+        f"=IF(ROUND(SUM({first_col}{ROW_CAFD}:{last_col}{ROW_CAFD})"
+        f"-SUM({first_col}{ROW_DISTRIBUTION}:{last_col}{ROW_DISTRIBUTION})"
+        f"+SUM({first_col}{ROW_EQUITY_INJECTION}:{last_col}{ROW_EQUITY_INJECTION})"
+        f"-{last_col}{ROW_BUFFER_CLOSING},2)=0,1,0)"
+    )
+    reconciles.font = Font(color=COLOR_FORMULA)
+
+    injections = ws[f"{last_col}{ROW_CHECK_EQUITY_INJECTIONS}"]
+    injections.value = (
+        f'=COUNTIF({first_col}{ROW_EQUITY_INJECTION}:{last_col}{ROW_EQUITY_INJECTION},">0.01")'
+    )
+    injections.font = Font(color=COLOR_FORMULA)
+
     _add_named_range(wb, "CFADS_LastCol", "Calc_CFADS", f"{last_col}1")
     _add_named_range(wb, "CFADS_NegFCFECount", "Calc_CFADS", f"{last_col}{ROW_CHECK_FCFE_NOT_BELOW_ZERO_COUNT}")
     _add_named_range(wb, "CFADS_MRAWindsDownCheck", "Calc_CFADS", f"{last_col}{ROW_CHECK_MRA_WINDS_DOWN}")
     _add_named_range(wb, "CFADS_MRAFundsCapexCheck", "Calc_CFADS", f"{last_col}{ROW_CHECK_MRA_FUNDS_CAPEX}")
+    _add_named_range(wb, "CFADS_BufferNonNegCheck", "Calc_CFADS", f"{last_col}{ROW_CHECK_BUFFER_NON_NEGATIVE}")
+    _add_named_range(wb, "CFADS_CashReconcilesCheck", "Calc_CFADS", f"{last_col}{ROW_CHECK_CASH_RECONCILES}")
+    _add_named_range(wb, "CFADS_EquityInjectionCount", "Calc_CFADS", f"{last_col}{ROW_CHECK_EQUITY_INJECTIONS}")
 
     ws.freeze_panes = ws.cell(row=ROW_FCFF + 1, column=FIRST_DATA_COL)
     ws.column_dimensions["A"].width = 58

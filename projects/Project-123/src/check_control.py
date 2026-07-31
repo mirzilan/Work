@@ -110,8 +110,17 @@ def _checks(timeline: Timeline) -> list[tuple[str, str, str, str]]:
         ("Calc_CFADS", "MRA pre-funds each quarter's maintenance spend",
          f"{ops}{cfads.ROW_CHECK_MRA_FUNDS_CAPEX}", FLAG),
 
+        ("Calc_CFADS", "Cash buffer never negative",
+         f"{ops}{cfads.ROW_CHECK_BUFFER_NON_NEGATIVE}", FLAG),
+        ("Calc_CFADS", "CAFD = distributions - injections + closing buffer",
+         f"{ops}{cfads.ROW_CHECK_CASH_RECONCILES}", FLAG),
+        ("Calc_CFADS", "Quarters needing an equity injection",
+         f"{ops}{cfads.ROW_CHECK_EQUITY_INJECTIONS}", INFO),
+
         ("FS_Quarterly", "BS Balance Failures (Assets != Liab+Equity)",
          f"{ops}{fsq.ROW_CHECK_BS_BALANCES_COUNT}", COUNT),
+        ("FS_Quarterly", "Closing cash ties to the Calc_CFADS buffer",
+         f"{ops}{fsq.ROW_CHECK_CASH_TIES_BUFFER}", FLAG),
     ]
 
 

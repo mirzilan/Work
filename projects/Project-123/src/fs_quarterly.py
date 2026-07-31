@@ -45,25 +45,27 @@ ROW_PRINCIPAL_REPAYMENT = 20
 ROW_DSRA_FUNDING = 21
 ROW_MRA_FUNDING = 22
 ROW_DIVIDENDS_PAID = 23
-ROW_CFF = 24
-ROW_NET_CHANGE_CASH = 25
-ROW_OPENING_CASH = 26
-ROW_CLOSING_CASH = 27
+ROW_EQUITY_INJECTION = 24
+ROW_CFF = 25
+ROW_NET_CHANGE_CASH = 26
+ROW_OPENING_CASH = 27
+ROW_CLOSING_CASH = 28
 
 # Balance Sheet
-ROW_BS_CASH = 29
-ROW_BS_DSRA = 30
-ROW_BS_MRA = 31
-ROW_BS_PPE_NET = 32
-ROW_BS_TOTAL_ASSETS = 33
-ROW_BS_DEBT = 34
-ROW_BS_PAID_IN_CAPITAL = 35
-ROW_BS_RETAINED_EARNINGS = 36
-ROW_BS_TOTAL_EQUITY = 37
-ROW_BS_TOTAL_LIAB_EQUITY = 38
+ROW_BS_CASH = 30
+ROW_BS_DSRA = 31
+ROW_BS_MRA = 32
+ROW_BS_PPE_NET = 33
+ROW_BS_TOTAL_ASSETS = 34
+ROW_BS_DEBT = 35
+ROW_BS_PAID_IN_CAPITAL = 36
+ROW_BS_RETAINED_EARNINGS = 37
+ROW_BS_TOTAL_EQUITY = 38
+ROW_BS_TOTAL_LIAB_EQUITY = 39
 
-ROW_CHECK_HEADER = 41
-ROW_CHECK_BS_BALANCES_COUNT = 42  # count of quarters where the BS does not balance
+ROW_CHECK_HEADER = 42
+ROW_CHECK_BS_BALANCES_COUNT = 43  # count of quarters where the BS does not balance
+ROW_CHECK_CASH_TIES_BUFFER = 44   # closing cash must equal Calc_CFADS' buffer
 
 
 def build_fs_quarterly(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) -> Worksheet:
@@ -94,13 +96,14 @@ def build_fs_quarterly(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) 
     _label(ws, ROW_PRINCIPAL_REPAYMENT, "Debt Principal Repayment ($)")
     _label(ws, ROW_DSRA_FUNDING, "DSRA Funding/(Release) ($) — the LC fee sits in the P&L above")
     _label(ws, ROW_MRA_FUNDING, "MRA Funding/(Release) ($)")
-    _label(ws, ROW_DIVIDENDS_PAID, "Dividends Paid ($) — 100% FCFE payout")
+    _label(ws, ROW_DIVIDENDS_PAID, "Distributions to Equity ($)")
+    _label(ws, ROW_EQUITY_INJECTION, "Equity Injections ($) — shortfalls the buffer could not cover")
     _label(ws, ROW_CFF, "Cash Flow from Financing ($)")
     _label(ws, ROW_NET_CHANGE_CASH, "Net Change in Cash ($)")
     _label(ws, ROW_OPENING_CASH, "Opening Cash ($)")
     _label(ws, ROW_CLOSING_CASH, "Closing Cash ($)")
 
-    _label(ws, ROW_BS_CASH, "Cash ($) — unrestricted")
+    _label(ws, ROW_BS_CASH, "Cash ($) — unrestricted operating buffer")
     _label(ws, ROW_BS_DSRA, "DSRA Balance ($) — restricted cash")
     _label(ws, ROW_BS_MRA, "MRA Balance ($) — restricted cash")
     _label(ws, ROW_BS_PPE_NET, "PP&E, Net ($)")
@@ -113,6 +116,7 @@ def build_fs_quarterly(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) 
 
     ws.cell(row=ROW_CHECK_HEADER, column=1, value="Checks").font = Font(bold=True)
     _label(ws, ROW_CHECK_BS_BALANCES_COUNT, "# of quarters where BS does not balance")
+    _label(ws, ROW_CHECK_CASH_TIES_BUFFER, "Check: Closing cash ties to the Calc_CFADS buffer")
 
     n_quarters = len(timeline.operations_quarters)
     last_cons_col = col_letter(len(timeline.construction_months) - 1)
@@ -145,10 +149,11 @@ def build_fs_quarterly(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) 
         # cash through net income, so taking it again would double-count it.
         _link(ws, col, ROW_DSRA_FUNDING, f"Calc_Financing_Ops!{col}{fin_ops.ROW_DSRA_FUNDING}")
         _link(ws, col, ROW_MRA_FUNDING, f"Calc_CFADS!{col}{cfads.ROW_MRA_FUNDING}")
-        _link(ws, col, ROW_DIVIDENDS_PAID, f"Calc_CFADS!{col}{cfads.ROW_FCFE}")
+        _link(ws, col, ROW_DIVIDENDS_PAID, f"Calc_CFADS!{col}{cfads.ROW_DISTRIBUTION}")
+        _link(ws, col, ROW_EQUITY_INJECTION, f"Calc_CFADS!{col}{cfads.ROW_EQUITY_INJECTION}")
         _formula(ws, col, ROW_CFF,
                  f"=-{col}{ROW_PRINCIPAL_REPAYMENT}-{col}{ROW_DSRA_FUNDING}"
-                 f"-{col}{ROW_MRA_FUNDING}-{col}{ROW_DIVIDENDS_PAID}")
+                 f"-{col}{ROW_MRA_FUNDING}-{col}{ROW_DIVIDENDS_PAID}+{col}{ROW_EQUITY_INJECTION}")
         _formula(ws, col, ROW_NET_CHANGE_CASH,
                  f"={col}{ROW_CFO}+{col}{ROW_CFI}+{col}{ROW_CFF}")
 
@@ -175,7 +180,12 @@ def build_fs_quarterly(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) 
                  f"={col}{ROW_BS_CASH}+{col}{ROW_BS_DSRA}+{col}{ROW_BS_MRA}+{col}{ROW_BS_PPE_NET}")
 
         _link(ws, col, ROW_BS_DEBT, f"Calc_Financing_Ops!{col}{fin_ops.ROW_CLOSING_BAL}")
-        _link(ws, col, ROW_BS_PAID_IN_CAPITAL, f"Calc_Capex!${last_cons_col}$13")
+        if i == 0:
+            _formula(ws, col, ROW_BS_PAID_IN_CAPITAL,
+                     f"=Calc_Capex!${last_cons_col}$13+{col}{ROW_EQUITY_INJECTION}")
+        else:
+            _formula(ws, col, ROW_BS_PAID_IN_CAPITAL,
+                     f"={prev_col}{ROW_BS_PAID_IN_CAPITAL}+{col}{ROW_EQUITY_INJECTION}")
         if i == 0:
             _formula(ws, col, ROW_BS_RETAINED_EARNINGS,
                      f"={col}{ROW_NET_INCOME}-{col}{ROW_DIVIDENDS_PAID}")
@@ -197,7 +207,19 @@ def build_fs_quarterly(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) 
     )
     check_cell.font = Font(color=COLOR_FORMULA)
 
+    # An independent tie-out: the statements build cash from CFO/CFI/CFF, while Calc_CFADS
+    # builds the same balance from the waterfall. They are separate derivations, so a
+    # mismatch means one of them is wrong.
+    cash_tie = ws[f"{last_col}{ROW_CHECK_CASH_TIES_BUFFER}"]
+    cash_tie.value = (
+        f"=IF(SUMPRODUCT(--(ROUND({first_col}{ROW_CLOSING_CASH}:{last_col}{ROW_CLOSING_CASH}"
+        f"-Calc_CFADS!{first_col}{cfads.ROW_BUFFER_CLOSING}:"
+        f"Calc_CFADS!{last_col}{cfads.ROW_BUFFER_CLOSING},2)<>0))=0,1,0)"
+    )
+    cash_tie.font = Font(color=COLOR_FORMULA)
+
     _add_named_range(wb, "FSQ_LastCol", "FS_Quarterly", f"{last_col}1")
+    _add_named_range(wb, "FSQ_CashTiesBufferCheck", "FS_Quarterly", f"{last_col}{ROW_CHECK_CASH_TIES_BUFFER}")
     _add_named_range(wb, "FSQ_BSBalancesFailCount", "FS_Quarterly", f"{last_col}{ROW_CHECK_BS_BALANCES_COUNT}")
 
     ws.freeze_panes = ws.cell(row=ROW_BS_TOTAL_LIAB_EQUITY + 1, column=FIRST_DATA_COL)

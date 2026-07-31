@@ -13,6 +13,8 @@ from pathlib import Path
 import uno
 from com.sun.star.beans import PropertyValue
 
+import cover_refs as refs
+
 OUTPUT = Path(__file__).resolve().parent.parent / "output" / "project123_stage1c.xlsx"
 SOCKET = "socket,host=localhost,port=2002;urp;StarOffice.ComponentContext"
 
@@ -91,6 +93,37 @@ def solve(doc, passes=40, tol=1.0):
     return passes
 
 
+def _headline_refs():
+    """Built from the builders' own row constants. These were literals once and silently
+    drifted onto the wrong rows the moment a sheet gained a line."""
+    import calc_cfads as cfads
+    import calc_financing_cons as fin_cons
+    import calc_financing_ops as fin_ops
+    import cover
+    import fs_quarterly as fsq
+    from workbook_builder import col_letter
+
+    ops = col_letter(79)
+    q1 = col_letter(0)
+    return [
+        ("Total Project Cost", "Cover", f"B{cover.ROW_LIVE_TPC}", ",.0f"),
+        ("Debt Facility", "Calc_Financing_Cons", fin_cons.CELL_DEBT_FACILITY, ",.0f"),
+        ("Implied Gearing", "Cover", f"B{cover.ROW_LIVE_GEARING}", ".2%"),
+        ("Min DSCR over tenor", "Cover", f"B{cover.ROW_LIVE_MIN_DSCR}", ".4f"),
+        ("Min LLCR", "Cover", f"B{cover.ROW_LIVE_MIN_LLCR}", ".3f"),
+        ("PLCR at Q1", "Calc_Financing_Ops", f"{q1}{fin_ops.ROW_PLCR}", ".3f"),
+        ("DSRA balance Q1", "Calc_Financing_Ops", f"{q1}{fin_ops.ROW_DSRA_BALANCE}", ",.0f"),
+        ("MRA balance Q1", "Calc_CFADS", f"{q1}{cfads.ROW_MRA_BALANCE}", ",.0f"),
+        ("Cash buffer, final Q", "Calc_CFADS", f"{ops}{cfads.ROW_BUFFER_CLOSING}", ",.0f"),
+        ("Equity injections, total", "Calc_CFADS", f"{ops}{cfads.ROW_CHECK_EQUITY_INJECTIONS}", ",.0f"),
+        ("PIRR", "FS_Annual", "A19", ".4%"),
+        ("EIRR", "FS_Annual", "A21", ".4%"),
+        ("Closing cash, final Q", "FS_Quarterly", f"{ops}{fsq.ROW_CLOSING_CASH}", ",.2f"),
+        ("Closing debt, final Q", "FS_Quarterly", f"{ops}{fsq.ROW_BS_DEBT}", ",.2f"),
+        ("Closing PP&E, final Q", "FS_Quarterly", f"{ops}{fsq.ROW_BS_PPE_NET}", ",.0f"),
+    ]
+
+
 def report(doc, label):
     print(f"\n{'=' * 78}\n{label}\n{'=' * 78}")
 
@@ -116,25 +149,11 @@ def report(doc, label):
         row += 1
 
     print("\nHeadline outputs")
-    for name, sheet, ref, fmt in (
-        ("Total Project Cost", "Calc_Capex", "Z17", ",.0f"),
-        ("Debt Facility", "Calc_Financing_Cons", "B8", ",.0f"),
-        ("Implied Gearing", "Calc_Financing_Ops", "B11", ".2%"),
-        ("Sculpted Capacity", "Calc_Financing_Ops", "B8", ",.0f"),
-        ("Min DSCR (Q1-Q60)", "Calc_Financing_Ops", "C24", ".4f"),
-        ("LLCR at Q1", "Calc_Financing_Ops", "C32", ".3f"),
-        ("PLCR at Q1", "Calc_Financing_Ops", "C33", ".3f"),
-        ("DSRA balance Q1", "Calc_Financing_Ops", "C27", ",.0f"),
-        ("DSRA LC fee Q1", "Calc_Financing_Ops", "C29", ",.0f"),
-        ("MRA balance Q1", "Calc_CFADS", "C13", ",.0f"),
-        ("Maint capex Q1", "Calc_CFADS", "C11", ",.0f"),
-        ("PIRR", "FS_Annual", "A19", ".4%"),
-        ("EIRR", "FS_Annual", "A21", ".4%"),
-        ("Closing cash, final Q", "FS_Quarterly", "CD27", ",.2f"),
-        ("Closing debt, final Q", "FS_Quarterly", "CD34", ",.2f"),
-        ("Closing PP&E, final Q", "FS_Quarterly", "CD32", ",.0f"),
-    ):
-        print(f"  {name:24} {format(get(doc, (sheet, ref)), fmt)}")
+    for name, sheet, ref, fmt in _headline_refs():
+        try:
+            print(f"  {name:26} {format(get(doc, (sheet, ref)), fmt)}")
+        except Exception:
+            print(f"  {name:26} (unreadable)")
 
     return failures
 
@@ -146,13 +165,13 @@ def main():
         all_failures = []
 
         for scenario, name in ((1, "Base"), (2, "Upside"), (3, "Downside")):
-            set_value(doc, ("Cover", "B20"), scenario)
+            set_value(doc, ("Cover", refs.CELL_ACTIVE_SCENARIO), scenario)
             all_failures += [(name, *f) for f in report(doc, f"SCENARIO {scenario} — {name} (DSRA cash-funded)")]
 
-        set_value(doc, ("Cover", "B20"), 1)
-        _cell(doc, "Cover", "B23").setString("LC-Backed")
+        set_value(doc, ("Cover", refs.CELL_ACTIVE_SCENARIO), 1)
+        _cell(doc, "Cover", refs.CELL_DSRA_METHOD).setString(refs.DSRA_METHODS[1])
         all_failures += [("Base/LC", *f) for f in report(doc, "SCENARIO 1 — Base, DSRA LC-BACKED")]
-        _cell(doc, "Cover", "B23").setString("Cash Funded")
+        _cell(doc, "Cover", refs.CELL_DSRA_METHOD).setString(refs.DSRA_METHOD_CASH)
 
         print(f"\n{'=' * 78}")
         if all_failures:

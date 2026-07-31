@@ -35,6 +35,7 @@ ROW_DSRA_TIMING = 25
 ROW_TLCF_MODE = 26
 ROW_LOCKUP_DSCR = 27
 ROW_NEGATIVE_CASH = 28
+ROW_CASH_BUFFER_TARGET = 29
 
 CELL_DSRA_METHOD = f"B{ROW_DSRA_METHOD}"
 ABS_DSRA_METHOD = f"$B${ROW_DSRA_METHOD}"
@@ -42,6 +43,7 @@ ABS_DSRA_TIMING = f"$B${ROW_DSRA_TIMING}"
 ABS_TLCF_MODE = f"$B${ROW_TLCF_MODE}"
 ABS_LOCKUP_DSCR = f"$B${ROW_LOCKUP_DSCR}"
 ABS_NEGATIVE_CASH = f"$B${ROW_NEGATIVE_CASH}"
+ABS_CASH_BUFFER_TARGET = f"$B${ROW_CASH_BUFFER_TARGET}"
 
 # Option values. Consumers compare against these strings, so a renamed option changes
 # the dropdown and every formula that tests it together.

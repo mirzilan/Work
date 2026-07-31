@@ -12,7 +12,8 @@ from cover_refs import (  # noqa: F401  (re-exported for existing importers)
     CELL_ACTIVE_SCENARIO, CELL_DSRA_METHOD,
     ABS_DSRA_METHOD, ABS_DSRA_TIMING, ABS_TLCF_MODE, ABS_LOCKUP_DSCR, ABS_NEGATIVE_CASH,
     ROW_STRUCTURING_HEADER, ROW_DSRA_METHOD, ROW_DSRA_TIMING, ROW_TLCF_MODE,
-    ROW_LOCKUP_DSCR, ROW_NEGATIVE_CASH,
+    ROW_LOCKUP_DSCR, ROW_NEGATIVE_CASH, ROW_CASH_BUFFER_TARGET,
+    ABS_CASH_BUFFER_TARGET,
     DRAWDOWN_METHODS, DEBT_SIZING_MODES, DSRA_METHODS, DSRA_TIMINGS, TLCF_MODES,
     NEGATIVE_CASH_MODES, BATCH_MODES, N_SCENARIOS,
 )
@@ -20,34 +21,34 @@ from cover_refs import (  # noqa: F401  (re-exported for existing importers)
 # Goal seek + live returns. The blueprint put the control panel on Assumptions_Constant,
 # but every other solve setting already lives here and the buttons can only be drawn on
 # one sheet — splitting the panel from its own buttons would be worse than moving it.
-ROW_GOALSEEK_HEADER = 31
-ROW_TARGET_EIRR = 32
-ROW_TARGET_PIRR = 33
-ROW_LIVE_EIRR = 34
-ROW_LIVE_PIRR = 35
-ROW_EIRR_VS_TARGET = 36
-ROW_PIRR_VS_TARGET = 37
-ROW_GOALSEEK_STATUS = 38
-ROW_ON_TARGET = 39
-ROW_GOALSEEK_DRIVER = 41
-ROW_GOALSEEK_MIN_MULT = 42
-ROW_GOALSEEK_MAX_MULT = 43
-ROW_GOALSEEK_TOLERANCE = 44
-ROW_GOALSEEK_MAX_ITER = 45
-ROW_BATCH_MODE = 46
+ROW_GOALSEEK_HEADER = 33
+ROW_TARGET_EIRR = 34
+ROW_TARGET_PIRR = 35
+ROW_LIVE_EIRR = 36
+ROW_LIVE_PIRR = 37
+ROW_EIRR_VS_TARGET = 38
+ROW_PIRR_VS_TARGET = 39
+ROW_GOALSEEK_STATUS = 40
+ROW_ON_TARGET = 41
+ROW_GOALSEEK_DRIVER = 43
+ROW_GOALSEEK_MIN_MULT = 44
+ROW_GOALSEEK_MAX_MULT = 45
+ROW_GOALSEEK_TOLERANCE = 46
+ROW_GOALSEEK_MAX_ITER = 47
+ROW_BATCH_MODE = 48
 
-ROW_LIVE_HEADER = 49
-ROW_LIVE_TPC = 50
-ROW_LIVE_DEBT_FACILITY = 51
-ROW_LIVE_GEARING = 52
-ROW_LIVE_MIN_DSCR = 53
-ROW_LIVE_MIN_LLCR = 54
+ROW_LIVE_HEADER = 51
+ROW_LIVE_TPC = 52
+ROW_LIVE_DEBT_FACILITY = 53
+ROW_LIVE_GEARING = 54
+ROW_LIVE_MIN_DSCR = 55
+ROW_LIVE_MIN_LLCR = 56
 
-ROW_FRESHNESS_HEADER = 57
-ROW_LAST_SOLVED = 58
-ROW_SOLVE_STATUS = 59
-ROW_SNAPSHOT_TABLE_HEADER = 61
-ROW_FIRST_SNAPSHOT = 62
+ROW_FRESHNESS_HEADER = 59
+ROW_LAST_SOLVED = 60
+ROW_SOLVE_STATUS = 61
+ROW_SNAPSHOT_TABLE_HEADER = 63
+ROW_FIRST_SNAPSHOT = 64
 
 # (label, live-value formula) — every input a solve depends on. Tracking them individually
 # rather than as one hashed checksum means the model names the assumption that moved.
@@ -71,6 +72,7 @@ TRACKED_INPUTS = [
     ("Tax Loss Treatment", f"={ABS_TLCF_MODE}"),
     ("Lock-up DSCR", f"={ABS_LOCKUP_DSCR}"),
     ("Negative Cash Treatment", f"={ABS_NEGATIVE_CASH}"),
+    ("Target Cash Buffer", f"={ABS_CASH_BUFFER_TARGET}"),
     ("Active Scenario", f"={CELL_ACTIVE_SCENARIO.replace('B', '$B$')}"),
     ("Capex Phasing (signature)", None),  # filled in at build time — needs the timeline width
 ]
@@ -222,6 +224,7 @@ def build_cover(wb: Workbook, n_construction_months: int = 24,
     _add_named_range(wb, "Cover_TLCFMode", "Cover", f"B{ROW_TLCF_MODE}")
     _add_named_range(wb, "Cover_LockupDSCR", "Cover", f"B{ROW_LOCKUP_DSCR}")
     _add_named_range(wb, "Cover_NegativeCash", "Cover", f"B{ROW_NEGATIVE_CASH}")
+    _add_named_range(wb, "Cover_CashBufferTarget", "Cover", f"B{ROW_CASH_BUFFER_TARGET}")
     _add_named_range(wb, "ActiveScenario", "Cover", CELL_ACTIVE_SCENARIO)
 
     ws.column_dimensions["A"].width = 45
@@ -252,12 +255,17 @@ def _build_structuring_block(ws: Worksheet, wb: Workbook) -> None:
         ws.add_data_validation(validation)
         validation.add(cell)
 
+    ws.cell(row=ROW_CASH_BUFFER_TARGET, column=1, value="Target Cash Buffer (quarters of opex)")
+    buffer_cell = ws.cell(row=ROW_CASH_BUFFER_TARGET, column=2, value=2.0)
+    buffer_cell.font = Font(color=COLOR_INPUT)
+    buffer_cell.number_format = "0.0"
+
     ws.cell(row=ROW_LOCKUP_DSCR, column=1, value="Distribution Lock-up DSCR")
     lockup = ws.cell(row=ROW_LOCKUP_DSCR, column=2, value=1.10)
     lockup.font = Font(color=COLOR_INPUT)
     lockup.number_format = "0.00x"
 
-    ws.cell(row=ROW_STRUCTURING_HEADER + 6, column=1, value=(
+    ws.cell(row=ROW_STRUCTURING_HEADER + 8, column=1, value=(
         "DSRA Method — Cash Funded traps CFADS to hold the reserve; LC-Backed charges a fee "
         "instead. Timing — At Financial Close funds the opening requirement from the "
         "facility, so it is not a day-one call on operating cash. Tax Loss — Carried "

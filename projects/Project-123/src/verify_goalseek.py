@@ -10,19 +10,21 @@ hits the target" some smarter way would prove nothing about the macro that ships
 
 import sys
 
+import cover_refs as refs
+import cover
 from verify import _start_soffice, _load, get, set_value, solve, OUTPUT
 
 # Assumptions_Constant!C11:L11 — ScenarioRevenueRow. Column C is scenario 1.
 DRIVER_SHEET = "Assumptions_Constant"
-DRIVER_ROW = 11
+DRIVER_ROW = __import__("assumptions_constant").ROW_ANNUAL_REVENUE
 DRIVER_FIRST_COL = 3
 
-LIVE = {"EIRR": ("Cover", "B29"), "PIRR": ("Cover", "B30")}
-TARGET = {"EIRR": ("Cover", "B27"), "PIRR": ("Cover", "B28")}
-MIN_MULT = ("Cover", "B37")
-MAX_MULT = ("Cover", "B38")
-TOLERANCE = ("Cover", "B39")
-MAX_ITER = ("Cover", "B40")
+LIVE = {"EIRR": ("Cover", f"B{cover.ROW_LIVE_EIRR}"), "PIRR": ("Cover", f"B{cover.ROW_LIVE_PIRR}")}
+TARGET = {"EIRR": ("Cover", f"B{cover.ROW_TARGET_EIRR}"), "PIRR": ("Cover", f"B{cover.ROW_TARGET_PIRR}")}
+MIN_MULT = ("Cover", f"B{cover.ROW_GOALSEEK_MIN_MULT}")
+MAX_MULT = ("Cover", f"B{cover.ROW_GOALSEEK_MAX_MULT}")
+TOLERANCE = ("Cover", f"B{cover.ROW_GOALSEEK_TOLERANCE}")
+MAX_ITER = ("Cover", f"B{cover.ROW_GOALSEEK_MAX_ITER}")
 
 
 def driver_cell(doc, scenario):
@@ -107,7 +109,7 @@ def main():
     failures = []
     try:
         doc = _load(ctx, OUTPUT)
-        set_value(doc, ("Cover", "B20"), 1)
+        set_value(doc, ("Cover", refs.CELL_ACTIVE_SCENARIO), 1)
         solve(doc)
 
         print("=" * 78)
@@ -127,7 +129,7 @@ def main():
                 print("\n" + "=" * 78)
                 print(f"GOAL SEEK — scenario {scenario} ({name}), target {metric}")
                 print("=" * 78)
-                set_value(doc, ("Cover", "B20"), scenario)
+                set_value(doc, ("Cover", refs.CELL_ACTIVE_SCENARIO), scenario)
                 solve(doc)
                 original = get(doc, driver_cell(doc, scenario))
 
