@@ -105,7 +105,7 @@ BUTTON_SPECS = [
 
 def build_cover(wb: Workbook, n_construction_months: int = 24,
                 tenor_end_col: str = "BJ", n_operating_quarters: int = 80) -> Worksheet:
-    ws = wb.create_sheet("Cover", 0)  # index 0: first sheet, opens here
+    ws = wb.create_sheet("Cover", 1)  # index 1: right after Dashboard, which opens first
     ws.sheet_properties.tabColor = TAB_COLOR_INPUT
 
     ws["A1"] = "Project 123 — Cover"

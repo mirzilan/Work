@@ -35,12 +35,15 @@ Public Sub DrawControlPanel()
     Dim topPos As Double
 
     On Error Resume Next
-    Set ws = ThisWorkbook.Worksheets("Cover")
     Set spec = ThisWorkbook.Names("ButtonSpec").RefersToRange
     On Error GoTo 0
 
-    If ws Is Nothing Then Exit Sub
     If spec Is Nothing Then Exit Sub
+
+    ' The sheet the buttons live on follows wherever ButtonSpec is defined — currently
+    ' Cover, but a future move of the control panel needs no VBA change, only a rebuild.
+    Set ws = spec.Worksheet
+    If ws Is Nothing Then Exit Sub
 
     ws.Buttons.Delete
 

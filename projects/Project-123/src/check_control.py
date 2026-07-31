@@ -13,6 +13,7 @@ import calc_revenue_opex as rev_opex
 import calc_tax as tax
 import cover
 import fs_quarterly as fsq
+import valuation_selldown as selldown
 from timeline import Timeline
 from workbook_builder import TAB_COLOR_CHECK, COLOR_FORMULA, col_letter
 
@@ -121,6 +122,9 @@ def _checks(timeline: Timeline) -> list[tuple[str, str, str, str]]:
          f"{ops}{fsq.ROW_CHECK_BS_BALANCES_COUNT}", COUNT),
         ("FS_Quarterly", "Closing cash ties to the Calc_CFADS buffer",
          f"{ops}{fsq.ROW_CHECK_CASH_TIES_BUFFER}", FLAG),
+
+        ("Valuation_SellDown", "Sale price is 0 at the final exit year",
+         f"B{selldown.ROW_CHECK_FINAL_EXIT_ZERO_PRICE}", FLAG),
     ]
 
 
