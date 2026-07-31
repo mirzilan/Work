@@ -31,7 +31,7 @@ Public Sub DrawControlPanel()
     Dim spec As Range
     Dim macroCell As Range
     Dim btn As Object
-    Dim drawn As Long
+    Dim slotIndex As Long
     Dim topPos As Double
 
     On Error Resume Next
@@ -47,14 +47,18 @@ Public Sub DrawControlPanel()
 
     ws.Buttons.Delete
 
-    drawn = 0
+    ' Position tracks the row's slot index, not a count of buttons actually drawn --
+    ' a blank row in ButtonSpec is a deliberate tier gap (see cover.py's BUTTON_SPECS)
+    ' and has to consume real vertical space, or the tiers would draw touching each
+    ' other with nothing to show they're grouped differently.
+    slotIndex = 0
     For Each macroCell In spec.Columns(1).Cells
+        topPos = BUTTON_TOP + slotIndex * (BUTTON_HEIGHT + BUTTON_GAP)
         If Len(Trim$(CStr(macroCell.Value))) > 0 Then
-            topPos = BUTTON_TOP + drawn * (BUTTON_HEIGHT + BUTTON_GAP)
             Set btn = ws.Buttons.Add(BUTTON_LEFT, topPos, BUTTON_WIDTH, BUTTON_HEIGHT)
             btn.OnAction = Trim$(CStr(macroCell.Value))
             btn.Caption = Trim$(CStr(macroCell.Offset(0, 1).Value))
-            drawn = drawn + 1
         End If
+        slotIndex = slotIndex + 1
     Next macroCell
 End Sub

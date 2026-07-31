@@ -1,4 +1,5 @@
-from openpyxl.styles import Font
+from openpyxl.formatting.rule import FormulaRule
+from openpyxl.styles import Font, PatternFill
 from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.workbook import Workbook
@@ -86,9 +87,22 @@ ROW_FRESHNESS_FLAG = ROW_FIRST_SNAPSHOT + len(TRACKED_INPUTS) + 1
 # scratch — openpyxl carries the button *parts* across but nothing left to reference them.
 # So the buttons are redrawn by Workbook_Open from this table instead. Keeping the table
 # on the generated side means adding a macro later is a build change, not a VBA edit.
+#
+# Three tiers, not a flat list:
+#   Tier 1 (everyday) -- Solve All, Goal Seek EIRR/PIRR. Idempotent, non-destructive,
+#     the only three buttons someone touching this model day to day needs.
+#   Tier 2 (batch) -- Run All 10 Scenarios. Slow and, in either Goal Seek batch mode,
+#     overwrites every scenario's revenue -- deliberately alone, visually set apart.
+#   Tier 3 (debug/recovery) -- the individual Loop 1/Loop 2 solves nobody needs once
+#     Solve All works, plus Reset for when a solve won't converge from where it's sitting.
+# `None` entries are deliberate blank rows: DrawControlPanel advances the vertical
+# position for every row, blank or not, so a None here is real screen space between
+# tiers, not just an unused slot. Invalidate Solve is intentionally not on the panel --
+# it is a "force a re-solve to be proven, not assumed" audit tool, not a routine action;
+# it still exists in mod_SolveFreshness.bas and runs fine from the VBA macro list.
 ROW_BUTTON_SPEC_HEADER = 2
 ROW_FIRST_BUTTON_SPEC = 3
-N_BUTTON_SLOTS = 10
+N_BUTTON_SLOTS = 9  # 3 Tier 1 + gap + 1 Tier 2 + gap + 3 Tier 3 — matches len(BUTTON_SPECS) exactly
 COL_BUTTON_MACRO = 8   # column H
 COL_BUTTON_LABEL = 9   # column I
 
@@ -96,11 +110,12 @@ BUTTON_SPECS = [
     ("SolveAllCurrentScenario", "Solve All (Current Scenario)"),
     ("GoalSeekEIRR", "Goal Seek -> Target EIRR"),
     ("GoalSeekPIRR", "Goal Seek -> Target PIRR"),
+    None,
     ("RunAllScenarios", "Run All 10 Scenarios (Batch)"),
-    ("SolveConstructionIDC", "Solve Construction IDC"),
-    ("SolveDebtSculpting", "Solve Debt Sculpting"),
-    ("ResetAllStagedValues", "Reset Staged Values"),
-    ("InvalidateSolveSnapshot", "Invalidate Solve"),
+    None,
+    ("SolveConstructionIDC", "Debug: Solve Construction IDC"),
+    ("SolveDebtSculpting", "Debug: Solve Debt Sculpting"),
+    ("ResetAllStagedValues", "Recovery: Reset Staged Values"),
 ]
 
 
@@ -137,9 +152,13 @@ def build_cover(wb: Workbook, n_construction_months: int = 24,
     status_cell.value = f"=Check_Control!B{check_control.ROW_MASTER_FLAG}"
     status_cell.font = Font(bold=True, size=14)
 
-    ws["A11"] = "Buttons (Stage 1b+): Solve Construction IDC | Solve Debt Sculpting | Goal Seek -> EIRR | Goal Seek -> PIRR"
+    ws["A11"] = (
+        "Buttons (top-right): Tier 1 everyday (Solve All, Goal Seek EIRR/PIRR) -- "
+        "gap -- Tier 2 batch (Run All 10 Scenarios) -- gap -- Tier 3 debug/recovery "
+        "(Solve Construction IDC, Solve Debt Sculpting, Reset Staged Values)."
+    )
     ws["A11"].font = Font(italic=True)
-    ws["A12"] = "Placeholder rows only — Form Control buttons + macro assignment are a manual, one-time step (see VBA hand-off docs)."
+    ws["A12"] = "Live status just above the buttons is a one-glance read of Check_Control + Solve Freshness."
     ws["A12"].font = Font(italic=True, size=9)
 
     ws["A14"] = "Construction Drawdown Method"
@@ -409,8 +428,38 @@ def _computed(ws: Worksheet, row: int, label: str, formula: str, fmt: str | None
         cell.number_format = fmt
 
 
+ROW_LIVE_STATUS = 1
+
+
 def _build_button_spec(ws: Worksheet, wb: Workbook) -> None:
     from openpyxl.workbook.defined_name import DefinedName
+
+    # One-glance answer to "do I need to click anything", sitting directly above the
+    # buttons rather than only on Check_Control/Dashboard where it's easy to forget to
+    # check before trusting whatever Tier 1 just showed you.
+    status_cell = ws.cell(row=ROW_LIVE_STATUS, column=COL_BUTTON_MACRO,
+                          value="=Check_Control!B3&\"  |  \"&SolveStatus")
+    status_cell.font = Font(bold=True, size=10)
+    ws.merge_cells(start_row=ROW_LIVE_STATUS, start_column=COL_BUTTON_MACRO,
+                   end_row=ROW_LIVE_STATUS, end_column=COL_BUTTON_LABEL)
+
+    fill_green = PatternFill(start_color="FFC6EFCE", end_color="FFC6EFCE", fill_type="solid")
+    fill_red = PatternFill(start_color="FFFFC7CE", end_color="FFFFC7CE", fill_type="solid")
+    status_ref = status_cell.coordinate
+    ws.conditional_formatting.add(
+        status_ref,
+        FormulaRule(formula=[f'ISNUMBER(SEARCH("ERRORS FOUND",{status_ref}))'], fill=fill_red),
+    )
+    ws.conditional_formatting.add(
+        status_ref,
+        FormulaRule(formula=[f'ISNUMBER(SEARCH("RE-RUN SOLVE",{status_ref}))'], fill=fill_red),
+    )
+    ws.conditional_formatting.add(
+        status_ref,
+        FormulaRule(formula=[f'AND(ISNUMBER(SEARCH("MODEL OK",{status_ref})),'
+                             f'ISNUMBER(SEARCH("SOLVED - current",{status_ref})))'],
+                    fill=fill_green),
+    )
 
     header = ws.cell(row=ROW_BUTTON_SPEC_HEADER, column=COL_BUTTON_MACRO,
                      value="Control Panel — Workbook_Open redraws the buttons from this table")
@@ -418,7 +467,8 @@ def _build_button_spec(ws: Worksheet, wb: Workbook) -> None:
 
     for i in range(N_BUTTON_SLOTS):
         row = ROW_FIRST_BUTTON_SPEC + i
-        macro, label = BUTTON_SPECS[i] if i < len(BUTTON_SPECS) else ("", "")
+        spec = BUTTON_SPECS[i] if i < len(BUTTON_SPECS) else None
+        macro, label = spec if spec else ("", "")
         ws.cell(row=row, column=COL_BUTTON_MACRO, value=macro).font = Font(color=COLOR_INPUT, size=9)
         ws.cell(row=row, column=COL_BUTTON_LABEL, value=label).font = Font(color=COLOR_INPUT, size=9)
 
