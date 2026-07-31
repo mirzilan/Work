@@ -6,56 +6,48 @@ from openpyxl.workbook import Workbook
 import assumptions_model as model
 from workbook_builder import COLOR_INPUT, COLOR_LINK, TAB_COLOR_INPUT
 
-CELL_CIRC_TOLERANCE = "B4"
-CELL_MAX_ITERATIONS = "B5"
-CELL_DEBT_SIZING_TOLERANCE = "B6"
-
-CELL_MASTER_CHECK_LINK = "B9"
-
-CELL_DRAWDOWN_METHOD = "B14"
-CELL_DEBT_SIZING_MODE = "B17"
-CELL_ACTIVE_SCENARIO = "B20"
-CELL_DSRA_METHOD = "B23"
-
-ABS_DSRA_METHOD = "$B$23"
-
-DRAWDOWN_METHODS = ["Debt First", "Equity First", "Pari Passu"]
-DEBT_SIZING_MODES = ["Fixed Gearing", "DSCR Sculpted"]
-DSRA_METHODS = ["Cash Funded", "LC-Backed"]
-BATCH_MODES = ["Solve Only", "Solve + Goal Seek EIRR", "Solve + Goal Seek PIRR"]
-N_SCENARIOS = 10
+from cover_refs import (  # noqa: F401  (re-exported for existing importers)
+    CELL_CIRC_TOLERANCE, CELL_MAX_ITERATIONS, CELL_DEBT_SIZING_TOLERANCE,
+    CELL_MASTER_CHECK_LINK, CELL_DRAWDOWN_METHOD, CELL_DEBT_SIZING_MODE,
+    CELL_ACTIVE_SCENARIO, CELL_DSRA_METHOD,
+    ABS_DSRA_METHOD, ABS_DSRA_TIMING, ABS_TLCF_MODE, ABS_LOCKUP_DSCR, ABS_NEGATIVE_CASH,
+    ROW_STRUCTURING_HEADER, ROW_DSRA_METHOD, ROW_DSRA_TIMING, ROW_TLCF_MODE,
+    ROW_LOCKUP_DSCR, ROW_NEGATIVE_CASH,
+    DRAWDOWN_METHODS, DEBT_SIZING_MODES, DSRA_METHODS, DSRA_TIMINGS, TLCF_MODES,
+    NEGATIVE_CASH_MODES, BATCH_MODES, N_SCENARIOS,
+)
 
 # Goal seek + live returns. The blueprint put the control panel on Assumptions_Constant,
 # but every other solve setting already lives here and the buttons can only be drawn on
 # one sheet — splitting the panel from its own buttons would be worse than moving it.
-ROW_GOALSEEK_HEADER = 26
-ROW_TARGET_EIRR = 27
-ROW_TARGET_PIRR = 28
-ROW_LIVE_EIRR = 29
-ROW_LIVE_PIRR = 30
-ROW_EIRR_VS_TARGET = 31
-ROW_PIRR_VS_TARGET = 32
-ROW_GOALSEEK_STATUS = 33
-ROW_ON_TARGET = 34
-ROW_GOALSEEK_DRIVER = 36
-ROW_GOALSEEK_MIN_MULT = 37
-ROW_GOALSEEK_MAX_MULT = 38
-ROW_GOALSEEK_TOLERANCE = 39
-ROW_GOALSEEK_MAX_ITER = 40
-ROW_BATCH_MODE = 41
+ROW_GOALSEEK_HEADER = 31
+ROW_TARGET_EIRR = 32
+ROW_TARGET_PIRR = 33
+ROW_LIVE_EIRR = 34
+ROW_LIVE_PIRR = 35
+ROW_EIRR_VS_TARGET = 36
+ROW_PIRR_VS_TARGET = 37
+ROW_GOALSEEK_STATUS = 38
+ROW_ON_TARGET = 39
+ROW_GOALSEEK_DRIVER = 41
+ROW_GOALSEEK_MIN_MULT = 42
+ROW_GOALSEEK_MAX_MULT = 43
+ROW_GOALSEEK_TOLERANCE = 44
+ROW_GOALSEEK_MAX_ITER = 45
+ROW_BATCH_MODE = 46
 
-ROW_LIVE_HEADER = 44
-ROW_LIVE_TPC = 45
-ROW_LIVE_DEBT_FACILITY = 46
-ROW_LIVE_GEARING = 47
-ROW_LIVE_MIN_DSCR = 48
-ROW_LIVE_MIN_LLCR = 49
+ROW_LIVE_HEADER = 49
+ROW_LIVE_TPC = 50
+ROW_LIVE_DEBT_FACILITY = 51
+ROW_LIVE_GEARING = 52
+ROW_LIVE_MIN_DSCR = 53
+ROW_LIVE_MIN_LLCR = 54
 
-ROW_FRESHNESS_HEADER = 52
-ROW_LAST_SOLVED = 53
-ROW_SOLVE_STATUS = 54
-ROW_SNAPSHOT_TABLE_HEADER = 56
-ROW_FIRST_SNAPSHOT = 57
+ROW_FRESHNESS_HEADER = 57
+ROW_LAST_SOLVED = 58
+ROW_SOLVE_STATUS = 59
+ROW_SNAPSHOT_TABLE_HEADER = 61
+ROW_FIRST_SNAPSHOT = 62
 
 # (label, live-value formula) — every input a solve depends on. Tracking them individually
 # rather than as one hashed checksum means the model names the assumption that moved.
@@ -75,6 +67,10 @@ TRACKED_INPUTS = [
     ("Drawdown Method", f"={CELL_DRAWDOWN_METHOD.replace('B', '$B$')}"),
     ("Debt Sizing Mode", f"={CELL_DEBT_SIZING_MODE.replace('B', '$B$')}"),
     ("DSRA Funding Method", f"={ABS_DSRA_METHOD}"),
+    ("DSRA Funding Timing", f"={ABS_DSRA_TIMING}"),
+    ("Tax Loss Treatment", f"={ABS_TLCF_MODE}"),
+    ("Lock-up DSCR", f"={ABS_LOCKUP_DSCR}"),
+    ("Negative Cash Treatment", f"={ABS_NEGATIVE_CASH}"),
     ("Active Scenario", f"={CELL_ACTIVE_SCENARIO.replace('B', '$B$')}"),
     ("Capex Phasing (signature)", None),  # filled in at build time — needs the timeline width
 ]
@@ -211,28 +207,7 @@ def build_cover(wb: Workbook, n_construction_months: int = 24,
     )
     ws["A21"].font = Font(italic=True, size=9)
 
-    ws["A23"] = "DSRA Funding Method"
-    ws["A23"].font = Font(bold=True)
-    dsra_cell = ws[CELL_DSRA_METHOD]
-    dsra_cell.value = DSRA_METHODS[0]
-    dsra_cell.font = Font(color=COLOR_INPUT)
-
-    dsra_validation = DataValidation(
-        type="list",
-        formula1=f'"{",".join(DSRA_METHODS)}"',
-        allow_blank=False,
-        showDropDown=False,
-    )
-    ws.add_data_validation(dsra_validation)
-    dsra_validation.add(dsra_cell)
-
-    ws["A24"] = (
-        "Cash Funded: CFADS is trapped to hold the reserve at target, released as the "
-        "requirement falls. LC-Backed: no cash trapped — a recurring LC fee is charged on "
-        "the requirement instead, and the fee is a tax-deductible P&L cost."
-    )
-    ws["A24"].font = Font(italic=True, size=9)
-
+    _build_structuring_block(ws, wb)
     _build_goalseek_block(ws, wb, tenor_end_col, n_operating_quarters, n_construction_months)
     _build_button_spec(ws, wb)
     _build_freshness_block(ws, wb, n_construction_months)
@@ -243,11 +218,53 @@ def build_cover(wb: Workbook, n_construction_months: int = 24,
     _add_named_range(wb, "Cover_DebtSizingTolerance", "Cover", CELL_DEBT_SIZING_TOLERANCE)
     _add_named_range(wb, "Cover_DrawdownMethod", "Cover", CELL_DRAWDOWN_METHOD)
     _add_named_range(wb, "Cover_DSRAMethod", "Cover", CELL_DSRA_METHOD)
+    _add_named_range(wb, "Cover_DSRATiming", "Cover", f"B{ROW_DSRA_TIMING}")
+    _add_named_range(wb, "Cover_TLCFMode", "Cover", f"B{ROW_TLCF_MODE}")
+    _add_named_range(wb, "Cover_LockupDSCR", "Cover", f"B{ROW_LOCKUP_DSCR}")
+    _add_named_range(wb, "Cover_NegativeCash", "Cover", f"B{ROW_NEGATIVE_CASH}")
     _add_named_range(wb, "ActiveScenario", "Cover", CELL_ACTIVE_SCENARIO)
 
     ws.column_dimensions["A"].width = 45
 
     return ws
+
+
+def _build_structuring_block(ws: Worksheet, wb: Workbook) -> None:
+    """Deal-structuring levers, separate from the solve settings above. Every one defaults
+    to market practice; setting all four back to the right-hand option reproduces the
+    pre-Stage-1e numbers exactly, which is what makes the change auditable."""
+    ws.cell(row=ROW_STRUCTURING_HEADER, column=1,
+            value="Structuring Options").font = Font(bold=True)
+
+    for row, label, options, default in (
+        (ROW_DSRA_METHOD, "DSRA Funding Method", DSRA_METHODS, DSRA_METHODS[0]),
+        (ROW_DSRA_TIMING, "DSRA Funding Timing", DSRA_TIMINGS, DSRA_TIMINGS[0]),
+        (ROW_TLCF_MODE, "Tax Loss Treatment", TLCF_MODES, TLCF_MODES[0]),
+        (ROW_NEGATIVE_CASH, "Negative Cash Treatment", NEGATIVE_CASH_MODES, NEGATIVE_CASH_MODES[0]),
+    ):
+        ws.cell(row=row, column=1, value=label)
+        cell = ws.cell(row=row, column=2, value=default)
+        cell.font = Font(color=COLOR_INPUT)
+        validation = DataValidation(
+            type="list", formula1=f'"{",".join(options)}"',
+            allow_blank=False, showDropDown=False,
+        )
+        ws.add_data_validation(validation)
+        validation.add(cell)
+
+    ws.cell(row=ROW_LOCKUP_DSCR, column=1, value="Distribution Lock-up DSCR")
+    lockup = ws.cell(row=ROW_LOCKUP_DSCR, column=2, value=1.10)
+    lockup.font = Font(color=COLOR_INPUT)
+    lockup.number_format = "0.00x"
+
+    ws.cell(row=ROW_STRUCTURING_HEADER + 6, column=1, value=(
+        "DSRA Method — Cash Funded traps CFADS to hold the reserve; LC-Backed charges a fee "
+        "instead. Timing — At Financial Close funds the opening requirement from the "
+        "facility, so it is not a day-one call on operating cash. Tax Loss — Carried "
+        "Forward shelters later profits. Lock-up — distributions blocked while DSCR is "
+        "below this. Negative Cash — Retain draws the buffer down; Inject Equity calls "
+        "shareholders, which is what the model did before these switches existed."
+    )).font = Font(italic=True, size=9)
 
 
 def _build_goalseek_block(ws: Worksheet, wb: Workbook, tenor_end_col: str,

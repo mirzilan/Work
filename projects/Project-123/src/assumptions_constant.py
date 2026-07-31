@@ -3,6 +3,7 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.workbook import Workbook
 
+import cover_refs as refs
 from inputs import ProjectInputs
 from workbook_builder import COLOR_INPUT, COLOR_FORMULA, TAB_COLOR_INPUT
 
@@ -150,7 +151,7 @@ def _index_formula(row: int) -> str:
     copied down the driver list without drifting off the scenario block."""
     first = get_column_letter(FIRST_SCENARIO_COL)
     last = get_column_letter(FIRST_SCENARIO_COL + N_SCENARIOS - 1)
-    return f"=INDEX(${first}${row}:${last}${row},1,Cover!$B$20)"
+    return f"=INDEX(${first}${row}:${last}${row},1,Cover!{refs.ABS_ACTIVE_SCENARIO})"
 
 
 def _name(wb: Workbook, name: str, sheet: str, cell: str) -> None:

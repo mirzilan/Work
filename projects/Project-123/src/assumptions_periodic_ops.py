@@ -3,6 +3,7 @@ from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.workbook import Workbook
 
 import assumptions_constant as const
+import cover_refs as refs
 from inputs import ProjectInputs
 from timeline import Timeline
 from workbook_builder import (
@@ -137,7 +138,7 @@ def _volume_block(ws: Worksheet, n_q: int, title_row: int, first_row: int, activ
     for i in range(n_q):
         col = col_letter(i)
         cell = ws[f"{col}{active_row}"]
-        cell.value = f"=INDEX({col}${first_row}:{col}${first_row + N_SCENARIOS - 1},Cover!$B$20)"
+        cell.value = f"=INDEX({col}${first_row}:{col}${first_row + N_SCENARIOS - 1},Cover!{refs.ABS_ACTIVE_SCENARIO})"
         cell.font = Font(color=COLOR_FORMULA)
         cell.number_format = "0.000"
 
@@ -164,7 +165,7 @@ def _maintenance_block(ws: Worksheet, n_q: int, inputs: ProjectInputs) -> None:
         cell = ws[f"{col}{ROW_MAINT_ACTIVE}"]
         cell.value = (
             f"=INDEX({col}${ROW_MAINT_FIRST_SCENARIO}:"
-            f"{col}${ROW_MAINT_FIRST_SCENARIO + N_SCENARIOS - 1},Cover!$B$20)"
+            f"{col}${ROW_MAINT_FIRST_SCENARIO + N_SCENARIOS - 1},Cover!{refs.ABS_ACTIVE_SCENARIO})"
         )
         cell.font = Font(color=COLOR_FORMULA)
         cell.number_format = "#,##0"

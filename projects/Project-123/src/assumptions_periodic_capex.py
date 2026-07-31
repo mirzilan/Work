@@ -2,6 +2,7 @@ from openpyxl.styles import Font
 from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.workbook import Workbook
 
+import cover_refs as refs
 from inputs import ProjectInputs
 from timeline import Timeline
 from workbook_builder import (
@@ -72,7 +73,7 @@ def build_assumptions_periodic_capex(wb: Workbook, timeline: Timeline, inputs: P
         cell = ws[f"{col}{ROW_ACTIVE}"]
         cell.value = (
             f"=INDEX({col}${ROW_FIRST_SCENARIO}:{col}${ROW_FIRST_SCENARIO + N_SCENARIOS - 1},"
-            f"Cover!$B$20)"
+            f"Cover!{refs.ABS_ACTIVE_SCENARIO})"
         )
         cell.font = Font(color=COLOR_FORMULA)
         cell.number_format = "0.00%"

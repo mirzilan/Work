@@ -83,6 +83,10 @@ def _checks(timeline: Timeline) -> list[tuple[str, str, str, str]]:
          f"{ops}{tax.ROW_CHECK_ACCUM_DEPR}", FLAG),
         ("Calc_Tax", "Accumulated Maint Depreciation <= Cumulative Maint Capex",
          f"{ops}{tax.ROW_CHECK_ACCUM_MAINT_DEPR}", FLAG),
+        ("Calc_Tax", "Tax losses c/f never negative",
+         f"{ops}{tax.ROW_CHECK_TLCF_NON_NEGATIVE}", FLAG),
+        ("Calc_Tax", "Losses utilised <= losses arising over life",
+         f"{ops}{tax.ROW_CHECK_TLCF_RECONCILES}", FLAG),
 
         ("Calc_Financing_Ops", "Closing Balance = 0 at Debt Tenor End",
          f"{ops}{fin_ops.ROW_CHECK_FULLY_AMORTIZED}", FLAG),

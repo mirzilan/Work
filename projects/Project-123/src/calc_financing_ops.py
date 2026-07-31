@@ -3,6 +3,7 @@ from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.workbook import Workbook
 
 import assumptions_model as model
+import cover_refs as refs
 from inputs import ProjectInputs
 from timeline import Timeline
 from workbook_builder import (
@@ -65,7 +66,7 @@ ROW_CHECK_CAPPED_BY_MAX_GEARING = 41
 ROW_CHECK_PLCR_GE_LLCR = 42
 ROW_CHECK_MIN_LLCR = 43
 
-DSRA_METHOD_CASH = "Cash Funded"
+DSRA_METHOD_CASH = refs.DSRA_METHOD_CASH
 
 
 def build_calc_financing_ops(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) -> Worksheet:
@@ -88,7 +89,7 @@ def build_calc_financing_ops(wb: Workbook, timeline: Timeline, inputs: ProjectIn
     last_cons_col = col_letter(len(timeline.construction_months) - 1)
 
     ws["A3"] = "Debt Sizing Mode — linked from Cover"
-    ws[CELL_SIZING_MODE] = "=Cover!$B$17"
+    ws[CELL_SIZING_MODE] = f"=Cover!{refs.ABS_DEBT_SIZING_MODE}"
     ws[CELL_SIZING_MODE].font = Font(color=COLOR_LINK)
 
     ws["A4"] = "Interest Rate (Annual) — linked from Assumptions_Model"
@@ -153,7 +154,7 @@ def build_calc_financing_ops(wb: Workbook, timeline: Timeline, inputs: ProjectIn
         "DSRA Funding Method — linked from Cover (target = "
         f"{inputs.reserves.dsra_target_months} months of forward debt service)"
     )
-    ws[CELL_DSRA_METHOD] = "=Cover!$B$23"
+    ws[CELL_DSRA_METHOD] = f"=Cover!{refs.ABS_DSRA_METHOD}"
     ws[CELL_DSRA_METHOD].font = Font(color=COLOR_LINK)
 
     _label(ws, ROW_DATE_HEADER, "Period End Date")
@@ -211,7 +212,7 @@ def build_calc_financing_ops(wb: Workbook, timeline: Timeline, inputs: ProjectIn
                 f"{col}{ROW_OPENING_BAL}+{col}{ROW_INTEREST}))"
             )
             level = f"MIN({pmt_formula},{col}{ROW_OPENING_BAL}+{col}{ROW_INTEREST})"
-            _formula(ws, col, ROW_DEBT_SERVICE, f'=IF({ABS_SIZING_MODE}="DSCR Sculpted",{sculpted},{level})')
+            _formula(ws, col, ROW_DEBT_SERVICE, f'=IF({ABS_SIZING_MODE}="{refs.SCULPTED}",{sculpted},{level})')
         else:
             _formula(ws, col, ROW_SCULPT_BASIS, "=0")
             _formula(ws, col, ROW_DEBT_SERVICE, "=0")
@@ -236,10 +237,10 @@ def build_calc_financing_ops(wb: Workbook, timeline: Timeline, inputs: ProjectIn
     # Judge it on materiality instead: 0.001% of the opening balance, floored at the tolerance.
     _check(ws, last_col, ROW_CHECK_FULLY_AMORTIZED,
            f"=IF(ABS({tenor_end_col}{ROW_CLOSING_BAL})"
-           f"<=MAX(Cover!$B$6,{first_col}{ROW_OPENING_BAL}*0.00001),1,0)")
+           f"<=MAX(Cover!{refs.ABS_DEBT_SIZING_TOLERANCE},{first_col}{ROW_OPENING_BAL}*0.00001),1,0)")
     _check(ws, last_col, ROW_CHECK_SCULPT_CONVERGED,
-           f'=IF({ABS_SIZING_MODE}<>"DSCR Sculpted",1,'
-           f"IF(ABS($B$10)<=Cover!$B$6,1,0))")
+           f'=IF({ABS_SIZING_MODE}<>"{refs.SCULPTED}",1,'
+           f"IF(ABS($B$10)<=Cover!{refs.ABS_DEBT_SIZING_TOLERANCE},1,0))")
     _check(ws, last_col, ROW_CHECK_MIN_DSCR,
            f"=IF(MIN({first_col}{ROW_DSCR}:{tenor_end_col}{ROW_DSCR})>={ABS_TARGET_DSCR}-0.001,1,0)")
     _check(ws, last_col, ROW_CHECK_PRINCIPAL_FLOORED,

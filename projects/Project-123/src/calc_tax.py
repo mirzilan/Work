@@ -4,6 +4,7 @@ from openpyxl.workbook import Workbook
 
 import assumptions_model as model
 import calc_financing_ops as fin_ops
+import cover
 from inputs import ProjectInputs
 from timeline import Timeline
 # Import the source sheet's row constants rather than restating them: indexing another
@@ -25,27 +26,43 @@ from workbook_builder import (
 TAX_RATE_CELL = "B3"
 USEFUL_LIFE_YEARS_CELL = "B4"
 MAINT_LIFE_YEARS_CELL = "B5"
+TLCF_MODE_CELL = "B6"
 
 ABS_TAX_RATE = "$B$3"
 ABS_USEFUL_LIFE = "$B$4"
 ABS_MAINT_LIFE = "$B$5"
+ABS_TLCF_MODE = "$B$6"
 
-ROW_DATE_HEADER = 7
-ROW_QUARTER_INDEX = 8
+TLCF_ENABLED = "Carried Forward"
 
-ROW_EBITDA = 10              # linked from Calc_Revenue_Opex
-ROW_BASE_DEPRECIATION = 11   # straight-line on Total Project Cost, single vintage
-ROW_MAINT_CAPEX = 12         # linked from Calc_Revenue_Opex
-ROW_MAINT_DEPRECIATION = 13  # multi-vintage: every quarter's spend starts its own schedule
-ROW_TOTAL_DEPRECIATION = 14
-ROW_INTEREST = 15            # linked from Calc_Financing_Ops — the tax shield
-ROW_EBT = 16
-ROW_TAX = 17                 # max(EBT,0) * tax rate — no loss carryforward yet
-ROW_NET_INCOME = 18
+ROW_DATE_HEADER = 8
+ROW_QUARTER_INDEX = 9
 
-ROW_CHECK_HEADER = 21
-ROW_CHECK_ACCUM_DEPR = 22
-ROW_CHECK_ACCUM_MAINT_DEPR = 23
+ROW_EBITDA = 11              # linked from Calc_Revenue_Opex
+ROW_BASE_DEPRECIATION = 12   # straight-line on Total Project Cost, single vintage
+ROW_MAINT_CAPEX = 13         # linked from Calc_Revenue_Opex
+ROW_MAINT_DEPRECIATION = 14  # multi-vintage: every quarter's spend starts its own schedule
+ROW_TOTAL_DEPRECIATION = 15
+ROW_INTEREST = 16            # linked from Calc_Financing_Ops — the tax shield
+ROW_EBT = 17
+
+# Tax losses shelter later profits instead of being forfeited. Without this the Downside
+# case strands its early-year losses entirely, overstating tax, understating CFADS and so
+# understating debt capacity in exactly the case where sizing is tightest.
+ROW_TLCF_OPENING = 19
+ROW_TLCF_ADDED = 20
+ROW_TLCF_USED = 21
+ROW_TLCF_CLOSING = 22
+
+ROW_TAXABLE_INCOME = 24
+ROW_TAX = 25
+ROW_NET_INCOME = 26
+
+ROW_CHECK_HEADER = 29
+ROW_CHECK_ACCUM_DEPR = 30
+ROW_CHECK_ACCUM_MAINT_DEPR = 31
+ROW_CHECK_TLCF_NON_NEGATIVE = 32
+ROW_CHECK_TLCF_RECONCILES = 33
 
 
 def build_calc_tax(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) -> Worksheet:
@@ -71,6 +88,10 @@ def build_calc_tax(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) -> W
     ws[MAINT_LIFE_YEARS_CELL] = inputs.reserves.maint_capex_useful_life_years
     ws[MAINT_LIFE_YEARS_CELL].font = Font(color=COLOR_INPUT)
 
+    ws["A6"] = "Tax Loss Treatment — linked from Cover"
+    ws[TLCF_MODE_CELL] = f"=Cover!{cover.ABS_TLCF_MODE}"
+    ws[TLCF_MODE_CELL].font = Font(color=COLOR_LINK)
+
     _label(ws, ROW_DATE_HEADER, "Period End Date")
     _label(ws, ROW_QUARTER_INDEX, "Operating Quarter #")
     _label(ws, ROW_EBITDA, "EBITDA ($) — linked from Calc_Revenue_Opex")
@@ -80,12 +101,19 @@ def build_calc_tax(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) -> W
     _label(ws, ROW_TOTAL_DEPRECIATION, "Total Depreciation ($)")
     _label(ws, ROW_INTEREST, "Interest Expense ($) — linked from Calc_Financing_Ops (tax shield)")
     _label(ws, ROW_EBT, "EBT ($) = EBITDA - Total Depreciation - Interest")
-    _label(ws, ROW_TAX, "Tax ($) — no loss carryforward yet")
+    _label(ws, ROW_TLCF_OPENING, "Tax Losses b/f, Opening ($)")
+    _label(ws, ROW_TLCF_ADDED, "Losses Arising ($) — this quarter's negative EBT")
+    _label(ws, ROW_TLCF_USED, "Losses Utilised ($) — capped at taxable profit")
+    _label(ws, ROW_TLCF_CLOSING, "Tax Losses c/f, Closing ($)")
+    _label(ws, ROW_TAXABLE_INCOME, "Taxable Income ($) = positive EBT less losses utilised")
+    _label(ws, ROW_TAX, "Tax ($)")
     _label(ws, ROW_NET_INCOME, "Net Income ($)")
 
     ws.cell(row=ROW_CHECK_HEADER, column=1, value="Checks").font = Font(bold=True)
     _label(ws, ROW_CHECK_ACCUM_DEPR, "Check: Accumulated Base Depreciation <= Total Project Cost")
     _label(ws, ROW_CHECK_ACCUM_MAINT_DEPR, "Check: Accumulated Maint Depreciation <= Cumulative Maint Capex")
+    _label(ws, ROW_CHECK_TLCF_NON_NEGATIVE, "Check: Tax losses c/f never negative")
+    _label(ws, ROW_CHECK_TLCF_RECONCILES, "Check: Losses utilised <= losses arising over life")
 
     n_quarters = len(timeline.operations_quarters)
     last_cons_col = col_letter(len(timeline.construction_months) - 1)
@@ -100,6 +128,7 @@ def build_calc_tax(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) -> W
 
     for i, period in enumerate(timeline.operations_quarters):
         col = col_letter(i)
+        prev = col_letter(i - 1) if i > 0 else None
 
         ws[f"{col}{ROW_DATE_HEADER}"] = period.end
         ws[f"{col}{ROW_DATE_HEADER}"].number_format = "mmm-yy"
@@ -139,7 +168,27 @@ def build_calc_tax(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) -> W
         # rather than overstating it.
         _formula(ws, col, ROW_EBT,
                  f"={col}{ROW_EBITDA}-{col}{ROW_TOTAL_DEPRECIATION}-{col}{ROW_INTEREST}")
-        _formula(ws, col, ROW_TAX, f"=MAX({col}{ROW_EBT},0)*{ABS_TAX_RATE}")
+
+        # Opening pool carries from the prior quarter; the pool starts empty because
+        # construction-period costs are capitalised, not expensed.
+        if i == 0:
+            _formula(ws, col, ROW_TLCF_OPENING, "=0")
+        else:
+            _formula(ws, col, ROW_TLCF_OPENING, f"={prev}{ROW_TLCF_CLOSING}")
+
+        _formula(ws, col, ROW_TLCF_ADDED, f"=MAX(-{col}{ROW_EBT},0)")
+        # Utilisation is capped both by the profit available to shelter and by the pool.
+        # The mode switch zeroes utilisation rather than the pool, so the sheet still
+        # shows the losses being forfeited instead of hiding them.
+        _formula(ws, col, ROW_TLCF_USED,
+                 f'=IF({ABS_TLCF_MODE}<>"{TLCF_ENABLED}",0,'
+                 f"MIN(MAX({col}{ROW_EBT},0),{col}{ROW_TLCF_OPENING}))")
+        _formula(ws, col, ROW_TLCF_CLOSING,
+                 f"={col}{ROW_TLCF_OPENING}+{col}{ROW_TLCF_ADDED}-{col}{ROW_TLCF_USED}")
+
+        _formula(ws, col, ROW_TAXABLE_INCOME,
+                 f"=MAX({col}{ROW_EBT},0)-{col}{ROW_TLCF_USED}")
+        _formula(ws, col, ROW_TAX, f"={col}{ROW_TAXABLE_INCOME}*{ABS_TAX_RATE}")
         _formula(ws, col, ROW_NET_INCOME, f"={col}{ROW_EBT}-{col}{ROW_TAX}")
 
     last_col = col_letter(n_quarters - 1)
@@ -155,7 +204,17 @@ def build_calc_tax(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) -> W
            f"=IF(SUM({first_col}{ROW_MAINT_DEPRECIATION}:{last_col}{ROW_MAINT_DEPRECIATION})"
            f"<=SUM({first_col}{ROW_MAINT_CAPEX}:{last_col}{ROW_MAINT_CAPEX})+0.01,1,0)")
 
+    _check(ws, last_col, ROW_CHECK_TLCF_NON_NEGATIVE,
+           f"=IF(MIN({first_col}{ROW_TLCF_CLOSING}:{last_col}{ROW_TLCF_CLOSING})>=-0.01,1,0)")
+
+    # Utilisation can only ever draw down losses that actually arose. Equality would mean
+    # the pool was fully absorbed; the gap is the loss still stranded at end of life.
+    _check(ws, last_col, ROW_CHECK_TLCF_RECONCILES,
+           f"=IF(SUM({first_col}{ROW_TLCF_USED}:{last_col}{ROW_TLCF_USED})"
+           f"<=SUM({first_col}{ROW_TLCF_ADDED}:{last_col}{ROW_TLCF_ADDED})+0.01,1,0)")
+
     _add_named_range(wb, "Tax_LastCol", "Calc_Tax", f"{last_col}1")
+    _add_named_range(wb, "Tax_TLCFClosingLast", "Calc_Tax", f"{last_col}{ROW_TLCF_CLOSING}")
     _add_named_range(wb, "Tax_AccumDeprCheck", "Calc_Tax", f"{last_col}{ROW_CHECK_ACCUM_DEPR}")
     _add_named_range(wb, "Tax_AccumMaintDeprCheck", "Calc_Tax", f"{last_col}{ROW_CHECK_ACCUM_MAINT_DEPR}")
 
