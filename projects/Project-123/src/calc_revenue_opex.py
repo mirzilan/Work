@@ -2,6 +2,8 @@ from openpyxl.styles import Font
 from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.workbook import Workbook
 
+import assumptions_model as model
+import assumptions_periodic_ops as per_ops
 from inputs import ProjectInputs
 from timeline import Timeline
 from workbook_builder import (
@@ -24,12 +26,22 @@ ROW_REVENUE = 10
 ROW_OPEX = 11
 ROW_EBITDA = 12
 
-ROW_CHECK_HEADER = 15
-ROW_CHECK_YEAR1_REVENUE = 16
-ROW_CHECK_EBITDA_POSITIVE = 17
+# Maintenance capex sits here rather than on Calc_CFADS because it is revenue-driven and
+# must be readable by Calc_Tax (depreciation vintages). Sourcing it from the waterfall
+# sheet would put Tax and CFADS in a cycle that no staged cell breaks.
+ROW_MAINT_ROUTINE = 14
+ROW_MAINT_LUMPY = 15
+ROW_MAINT_TOTAL = 16
+
+ROW_CHECK_HEADER = 19
+ROW_CHECK_YEAR1_REVENUE = 20
+ROW_CHECK_EBITDA_POSITIVE = 21
+ROW_CHECK_MAINT_NONNEG = 22
 
 ANNUAL_REVENUE_CELL = "B4"
 OPEX_PCT_CELL = "B9"
+ROUTINE_MAINT_PCT_CELL = "B13"
+ABS_ROUTINE_MAINT_PCT = "$B$13"
 
 
 def build_calc_revenue_opex(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) -> Worksheet:
@@ -40,14 +52,19 @@ def build_calc_revenue_opex(wb: Workbook, timeline: Timeline, inputs: ProjectInp
     ws["A1"].font = Font(bold=True, size=12)
 
     ws["A4"] = "Annual Revenue Input ($) — linked from Assumptions_Model, flat dummy placeholder"
-    ws[ANNUAL_REVENUE_CELL] = "=Assumptions_Model!$B$8"
+    ws[ANNUAL_REVENUE_CELL] = f"=Assumptions_Model!$B${model.ROW_ANNUAL_REVENUE}"
     ws[ANNUAL_REVENUE_CELL].font = Font(color=COLOR_LINK)
     ws[ANNUAL_REVENUE_CELL].number_format = "#,##0"
 
     ws["A9"] = "Opex % of Revenue — linked from Assumptions_Model"
-    ws[OPEX_PCT_CELL] = "=Assumptions_Model!$B$9"
+    ws[OPEX_PCT_CELL] = f"=Assumptions_Model!$B${model.ROW_OPEX_PCT}"
     ws[OPEX_PCT_CELL].font = Font(color=COLOR_LINK)
     ws[OPEX_PCT_CELL].number_format = "0.00%"
+
+    ws["A13"] = "Routine Maint Capex (% of Revenue) — linked from Assumptions_Model"
+    ws[ROUTINE_MAINT_PCT_CELL] = f"=Assumptions_Model!$B${model.ROW_ROUTINE_MAINT_PCT}"
+    ws[ROUTINE_MAINT_PCT_CELL].font = Font(color=COLOR_LINK)
+    ws[ROUTINE_MAINT_PCT_CELL].number_format = "0.00%"
 
     _label(ws, ROW_DATE_HEADER, "Period End Date")
     _label(ws, ROW_QUARTER_INDEX, "Operating Quarter #")
@@ -58,10 +75,14 @@ def build_calc_revenue_opex(wb: Workbook, timeline: Timeline, inputs: ProjectInp
     _label(ws, ROW_REVENUE, "Revenue ($) = base x volume index x escalation index")
     _label(ws, ROW_OPEX, "Opex ($) = base x volume index x escalation index")
     _label(ws, ROW_EBITDA, "EBITDA ($)")
+    _label(ws, ROW_MAINT_ROUTINE, "Routine Maintenance Capex ($) = Revenue x routine %")
+    _label(ws, ROW_MAINT_LUMPY, "Lumpy Maintenance Capex ($) — linked from Assumptions_Periodic_Ops")
+    _label(ws, ROW_MAINT_TOTAL, "Total Maintenance Capex ($)")
 
     ws.cell(row=ROW_CHECK_HEADER, column=1, value="Checks").font = Font(bold=True)
     _label(ws, ROW_CHECK_YEAR1_REVENUE, "Check: Year 1 revenue = Annual Revenue Input (holds when Yr1 indices = 1.00)")
     _label(ws, ROW_CHECK_EBITDA_POSITIVE, "Informational: # quarters with negative EBITDA")
+    _label(ws, ROW_CHECK_MAINT_NONNEG, "Check: Total maintenance capex >= 0 in every quarter")
 
     n_quarters = len(timeline.operations_quarters)
 
@@ -73,10 +94,10 @@ def build_calc_revenue_opex(wb: Workbook, timeline: Timeline, inputs: ProjectInp
         ws[f"{col}{ROW_QUARTER_INDEX}"] = i + 1
 
         for row, source_row in (
-            (ROW_REV_VOLUME_INDEX, 18),      # ROW_REV_ACTIVE on Assumptions_Periodic_Ops
-            (ROW_REV_ESC_INDEX, 44),         # ROW_REV_ESC_ACTIVE
-            (ROW_OPEX_VOLUME_INDEX, 31),     # ROW_OPEX_ACTIVE
-            (ROW_OPEX_ESC_INDEX, 45),        # ROW_OPEX_ESC_ACTIVE
+            (ROW_REV_VOLUME_INDEX, per_ops.ROW_REV_ACTIVE),
+            (ROW_REV_ESC_INDEX, per_ops.ROW_REV_ESC_ACTIVE),
+            (ROW_OPEX_VOLUME_INDEX, per_ops.ROW_OPEX_ACTIVE),
+            (ROW_OPEX_ESC_INDEX, per_ops.ROW_OPEX_ESC_ACTIVE),
         ):
             idx_cell = ws[f"{col}{row}"]
             idx_cell.value = f"=Assumptions_Periodic_Ops!{col}{source_row}"
@@ -100,6 +121,21 @@ def build_calc_revenue_opex(wb: Workbook, timeline: Timeline, inputs: ProjectInp
         ebitda_cell.font = Font(color=COLOR_FORMULA)
         ebitda_cell.number_format = "#,##0"
 
+        routine_cell = ws[f"{col}{ROW_MAINT_ROUTINE}"]
+        routine_cell.value = f"={col}{ROW_REVENUE}*{ABS_ROUTINE_MAINT_PCT}"
+        routine_cell.font = Font(color=COLOR_FORMULA)
+        routine_cell.number_format = "#,##0"
+
+        lumpy_cell = ws[f"{col}{ROW_MAINT_LUMPY}"]
+        lumpy_cell.value = f"=Assumptions_Periodic_Ops!{col}{per_ops.ROW_MAINT_ACTIVE}"
+        lumpy_cell.font = Font(color=COLOR_LINK)
+        lumpy_cell.number_format = "#,##0"
+
+        maint_total_cell = ws[f"{col}{ROW_MAINT_TOTAL}"]
+        maint_total_cell.value = f"={col}{ROW_MAINT_ROUTINE}+{col}{ROW_MAINT_LUMPY}"
+        maint_total_cell.font = Font(color=COLOR_FORMULA)
+        maint_total_cell.number_format = "#,##0"
+
     # Check: first 4 quarters' revenue sums to the annual input
     q1, q2, q3, q4 = (col_letter(i) for i in range(4))
     check_cell = ws[f"{q4}{ROW_CHECK_YEAR1_REVENUE}"]
@@ -115,10 +151,15 @@ def build_calc_revenue_opex(wb: Workbook, timeline: Timeline, inputs: ProjectInp
     ebitda_check.value = f"=COUNTIF({first_col}{ROW_EBITDA}:{last_col}{ROW_EBITDA},\"<0\")"
     ebitda_check.font = Font(color=COLOR_FORMULA)
 
+    maint_check = ws[f"{last_col}{ROW_CHECK_MAINT_NONNEG}"]
+    maint_check.value = f"=IF(MIN({first_col}{ROW_MAINT_TOTAL}:{last_col}{ROW_MAINT_TOTAL})>=0,1,0)"
+    maint_check.font = Font(color=COLOR_FORMULA)
+
     _add_named_range(wb, "RevOpex_LastCol", "Calc_Revenue_Opex", f"{last_col}1")
     _add_named_range(wb, "RevOpex_Year1Check", "Calc_Revenue_Opex", f"{q4}{ROW_CHECK_YEAR1_REVENUE}")
+    _add_named_range(wb, "RevOpex_MaintNonNegCheck", "Calc_Revenue_Opex", f"{last_col}{ROW_CHECK_MAINT_NONNEG}")
 
-    ws.freeze_panes = ws.cell(row=ROW_EBITDA + 1, column=FIRST_DATA_COL)
+    ws.freeze_panes = ws.cell(row=ROW_MAINT_TOTAL + 1, column=FIRST_DATA_COL)
 
     return ws
 

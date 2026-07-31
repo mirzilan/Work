@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import date
 
 
@@ -36,12 +36,32 @@ class TaxInputs:
 
 
 @dataclass
+class ReservesInputs:
+    """Window widths, not scenario drivers. Each one sets how many columns a range spans,
+    and the ranges are written out explicitly at build time — a scenario-varying width
+    would need OFFSET, which the model avoids. Rates that *can* vary by scenario (routine
+    maintenance %, LC fee) live on Assumptions_Constant instead."""
+
+    dsra_target_months: int
+    mra_lookforward_quarters: int
+    maint_capex_useful_life_years: int
+
+
+@dataclass
+class MaintenanceInputs:
+    lumpy_overhaul_amount: float
+    lumpy_overhaul_every_n_quarters: int
+
+
+@dataclass
 class ProjectInputs:
     dates: ProjectDates
     capex: CapexInputs
     financing: FinancingInputs
     revenue_opex: RevenueOpexInputs
     tax: TaxInputs
+    reserves: ReservesInputs
+    maintenance: MaintenanceInputs
 
 
 def dummy_100m_project() -> ProjectInputs:
@@ -71,12 +91,25 @@ def dummy_100m_project() -> ProjectInputs:
 
     tax = TaxInputs(tax_rate=0.25, useful_life_years=20)
 
+    reserves = ReservesInputs(
+        dsra_target_months=6,
+        mra_lookforward_quarters=4,
+        maint_capex_useful_life_years=10,
+    )
+
+    maintenance = MaintenanceInputs(
+        lumpy_overhaul_amount=2_000_000.0,
+        lumpy_overhaul_every_n_quarters=20,
+    )
+
     return ProjectInputs(
         dates=dates,
         capex=capex,
         financing=financing,
         revenue_opex=revenue_opex,
         tax=tax,
+        reserves=reserves,
+        maintenance=maintenance,
     )
 
 

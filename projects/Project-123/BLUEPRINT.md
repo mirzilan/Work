@@ -31,20 +31,20 @@ Reference document for the bankable project finance model engine. Check every bu
 |---|---|---|---|---|
 | 🟦 Input | `Cover` | — | ✅ built | Tolerances, drawdown + debt-sizing selectors, solve-freshness block, master check light; scenario selector (1c) |
 | 🟦 Input | `Assumptions_Model` | — | ✅ built (resolved layer) | Live values for the active scenario; every Calc sheet reads here, scenario machinery sits behind it |
-| 🟦 Input | `Assumptions_Constant` | — | ✅ built | 14 drivers x 10 scenarios across columns, Active column via `INDEX`; escalation rates live here so they vary by scenario |
+| 🟦 Input | `Assumptions_Constant` | — | ✅ built | 16 drivers x 10 scenarios across columns, Active column via `INDEX`; escalation rates live here so they vary by scenario |
 | 🟦 Input | `Assumptions_Periodic_Capex` | Monthly | ✅ built | Capex phasing as 10 scenario row-blocks + Active row; per-scenario sum checks. No escalation library — see note below |
-| 🟦 Input | `Assumptions_Periodic_Ops` | Quarterly | ✅ built | Revenue + opex volume indices as scenario row-blocks; escalation library (4 factors, annual % -> quarterly compounded index) with per-driver factor selectors |
+| 🟦 Input | `Assumptions_Periodic_Ops` | Quarterly | ✅ built | Revenue + opex volume indices as scenario row-blocks; lumpy maintenance capex row-block; escalation library (4 factors, annual % -> quarterly compounded index) with per-driver factor selectors |
 | 🟨 Calc | `Calc_Capex` | Monthly | ✅ built (uses-only, IDC linked) | Draws by category, cumulative spend, IDC + TPC; funding rows link from Financing_Cons |
 | 🟨 Calc | `Calc_Financing_Cons` | Monthly | ✅ built (Loop 1 live) | Owns all funding: drawdown method, debt/equity draws, IDC solve |
-| 🟨 Calc | `Calc_Revenue_Opex` | Quarterly | ✅ built (index + escalation driven) | Revenue and opex = base x volume index x escalation index; opex escalates off its own base, not off escalated revenue |
-| 🟨 Calc | `Calc_Tax` | Quarterly | ✅ built (single vintage, tax shield live) | Depreciation, tax, interest deduction; maintenance capex vintage (1c) |
-| 🟨 Calc | `Calc_CFADS` | Quarterly | ✅ built (no reserves) | Cash waterfall to FCFE; DSRA/MRA (1c) |
-| 🟨 Calc | `Calc_Financing_Ops` | Quarterly | ✅ built (Loop 2 live) | DSCR-locked sculpting + closed-form debt sizing; LLCR/PLCR (1c) |
+| 🟨 Calc | `Calc_Revenue_Opex` | Quarterly | ✅ built (index + escalation driven) | Revenue and opex = base x volume index x escalation index; opex escalates off its own base, not off escalated revenue. Also owns maintenance capex (routine % of revenue + lumpy) — it is revenue-driven and `Calc_Tax` must read it |
+| 🟨 Calc | `Calc_Tax` | Quarterly | ✅ built (multi-vintage) | Base depreciation on TPC + rolling-window maintenance vintages, tax, interest deduction |
+| 🟨 Calc | `Calc_CFADS` | Quarterly | ✅ built (MRA live) | Cash waterfall to FCFE and FCFF; owns the MRA. The DSRA lives on `Calc_Financing_Ops` — see below |
+| 🟨 Calc | `Calc_Financing_Ops` | Quarterly | ✅ built (Loop 2, DSRA, LLCR/PLCR live) | DSCR-locked sculpting + closed-form debt sizing; DSRA (cash-funded or LC-backed); LLCR/PLCR |
 | 🟩 Output | `FS_Quarterly` | Quarterly | ✅ built | 3-statements, FCFF/FCFE built once, PIRR/EIRR via `XIRR` |
 | 🟩 Output | `FS_Annual` | Annual | ✅ built (ops + construction) | Rolled up from Quarterly; separate construction-period annual block |
 | 🟩 Output | `Valuation_SellDown` | Annual | ⏳ Stage 1d | Standalone, read-only downstream of `FS_Annual`. Per exit-year: implied sale price (`XNPV`), seller's realized EIRR (`XIRR`), buyer's implied PIRR |
 | 🟩 Output | `Dashboard` | — | ⏳ Stage 1d | Charts + Sources & Uses table (formula-linked, not chart-derived) |
-| 🟥 Check | `Check_Control` | — | ✅ built (24 checks) | Master aggregator, direct-cell-ref pulls (no `INDIRECT`), `MODEL OK`/`ERRORS FOUND` |
+| 🟥 Check | `Check_Control` | — | ✅ built (31 checks) | Master aggregator, direct-cell-ref pulls (no `INDIRECT`), `MODEL OK`/`ERRORS FOUND`. Every cell ref is derived from the source module's row constants, never a literal |
 
 ---
 
@@ -73,9 +73,16 @@ So there is **no bisection** (an earlier draft of this blueprint specified one �
 ⚠️ **The PV must discount the *uncapped* basis.** The displayed service row is floored at interest and capped at the outstanding balance; discounting *that* makes the fixed point degenerate — once the balance hits zero the service drops to zero, so the PV simply reproduces whatever balance it was given and any starting debt size looks converged. Keep a separate uncapped "Sculpting Basis" row for the PV.
 
 ### DSRA / MRA
-- Waterfall: `Revenue − Opex − Tax = CFADS − Debt Service − DSRA funding/(release) − MRA funding/(release) = FCFE`
-- **DSRA funding method selector:** Cash-funded (trapped from CFADS) OR **LC-backed** (no cash trapped; recurring LC fee charged instead)
-- **MRA:** funds routine + lumpy maintenance capex draws (own depreciation vintage in `Calc_Tax`)
+- Waterfall: `CFADS − Debt Service − DSRA cash cost − MRA funding/(release) − Maintenance Capex = FCFE`
+- CFADS stays **pre-maintenance-capex** — it is the stream the sculpting basis divides by Target DSCR. Maintenance spend is funded through the MRA line below debt service. `FCFF = CFADS − Maintenance Capex`, built once on `Calc_CFADS`
+- Maintenance capex and the MRA are separate lines, never netted: the reserve releases cash in the quarter the spend lands, and netting them would hide both
+- **Where each reserve lives.** The DSRA sits on `Calc_Financing_Ops` (its requirement is forward debt service, which is owned there); the MRA sits on `Calc_CFADS`. Putting the DSRA on the waterfall sheet was tried and reverted — it forces the LC fee to be sourced from `Calc_CFADS`, which puts Tax and CFADS in a cycle
+- Both reserve targets are **forward-looking windows** (DSRA: N months of forward debt service; MRA: N quarters of forward maintenance capex), so each winds itself to zero as its stream runs out — no explicit release event needed, and fundings net to zero over the life
+- Window widths are **structural** build-time inputs (`ReservesInputs`), not scenario drivers: they set how many columns a range spans and the ranges are written out at build time. Scenario-varying widths would need `OFFSET`. The *rates* that can vary by scenario (routine maintenance %, LC fee %) live on `Assumptions_Constant`
+- **DSRA funding method selector** (`Cover`): Cash-funded (trapped from CFADS; reserve shows as restricted cash on the BS) OR **LC-backed** (no cash trapped, no asset; recurring LC fee charged on the requirement instead)
+- ⚠️ **The LC fee is non-deductible**, deliberately. Deducting it runs `LC fee → tax → CFADS → debt service → DSRA requirement → LC fee`, and that *is* a real cycle — the balance recursion ties quarter `t+1` back to `t`, so the forward-looking requirement does not save you. Neither staged cell breaks it. The fee therefore sits in the P&L **below tax** and reaches cash through net income, not through the CFF reserve line (taking it in both would double-count it). Making it deductible needs a third staged cell and a VBA pass — deferred, and understating the LC option's benefit is the safe direction to be wrong in
+- **Multi-vintage maintenance depreciation:** every quarter's spend opens its own straight-line vintage. Because all vintages share one life, the charge in quarter `t` is just the spend still inside the window divided by that life — a single rolling-window `SUM`, no NxN vintage matrix. Vintages opened near the end of life are truncated by the horizon, so the charge is never overstated
+- Because late vintages outlive the model horizon, **PP&E no longer winds to zero** at end of life. Cash and debt still do. That residual book value is real, not an error — terminal value is not modelled
 
 ### Coverage ratios
 - **DSCR:** period-by-period, CFADS/Debt Service
@@ -107,8 +114,14 @@ So there is **no bisection** (an earlier draft of this blueprint specified one �
 - `Check_Control`: pulls every check via **direct cell reference**, master flag via `COUNTIF`
 - **Dirty-flag (✅ built):** `Cover` snapshots all 13 tracked inputs at solve time and compares live vs. stored. Status reads `SOLVED - current` or `RE-RUN SOLVE - assumptions changed`, and the table names *which* input moved. Recorded automatically on every successful solve; cleared by the reset macros. Per-input tracking beats a single hashed checksum here: same protection, but it tells you what changed, and it sidesteps float-precision games in a combined hash
 
+### Verification
+- `src/verify.py` drives the built workbook through **LibreOffice headless (UNO)**, running the same two-staged-cell convergence the VBA does, then reads every `Check_Control` row and the headline outputs across all scenarios and both DSRA funding methods
+- This evaluates the workbook's **own formulas** rather than re-deriving what they should say. A harness that reimplements the intent agrees with itself — that is exactly how the pari-passu gearing bug survived its first review
+- "Solve is current" reads FAIL under the harness, correctly: the snapshot is only written by the VBA's `RecordSolveSnapshot`, which the harness bypasses
+
 ### VBA — build process constraint
 - `openpyxl` **cannot author VBA** — no COM/Excel in this environment
+- All macros address the model through **named ranges only**, never cell literals — which is why Stage 1c's row moves needed no VBA changes at all
 - Workflow: I hand you plain-text module code + a defined-names spec + button instructions; you paste into the VBA editor once (`.xlsx` → Save As `.xlsm` → `Alt+F11` → Insert Module → paste → Developer tab → Insert Form Control Button → Assign Macro)
 - One-time setup per macro group; future regenerations use `keep_vba=True` to preserve what you've pasted
 
@@ -127,7 +140,7 @@ So there is **no bisection** (an earlier draft of this blueprint specified one �
 | **1a — Plumbing proof** | Single scenario, flat dummy revenue, fixed-ratio debt, zero circularity | ✅ **complete** (tasks #1–10) |
 | **Interim — Input centralization** | `Cover` + `Assumptions_Model`, rewire all `Calc_*` hardcodes to links | ✅ **complete** (task #18) |
 | **1b — Circularity** | Loop 1 + drawdown selector + construction `FS_Annual` (#11 ✅) → Loop 2 + tax shield (#12 ✅) → dirty-flag check (#13 ✅) | ✅ **complete** |
-| **1c — Scale out** | 10 scenarios + escalation library (#14 ✅) → DSRA/MRA + LC option + LLCR/PLCR + multi-vintage maintenance capex (#15) → control panel + goal-seek (#16) | ⏳ in progress — #15 next |
+| **1c — Scale out** | 10 scenarios + escalation library (#14 ✅) → DSRA/MRA + LC option + LLCR/PLCR + multi-vintage maintenance capex (#15 ✅) → control panel + goal-seek (#16) | ⏳ in progress — #16 next |
 | **1d — Sell-down** | `Valuation_SellDown` + `Dashboard` (#17) | pending |
 
 **Dummy test case (Stage 1a validation):** $100M project, 24mo construction, 20yr ops, $15M/yr flat revenue, 70/30 debt/equity, 6% interest, 25% tax. Verified: BS balances all 80 quarters, model winds to exactly $0 at end of life, EIRR (7.16%) > PIRR (6.09%) correctly reflects leverage, EIRR moves monotonically with revenue.
@@ -147,3 +160,6 @@ So there is **no bisection** (an earlier draft of this blueprint specified one �
 - Don't build scenario conditional-formatting highlighting now — explicitly Phase 2
 - Don't skip the feasibility pre-check in multi-scenario goal-seek — burns iterations discovering what one bound-check would show instantly
 - Don't trust VBA-solved values without the dirty-flag check — stale copy-pasted numbers look identical to fresh ones
+- Don't move a row on an input sheet without checking who indexes it by literal. `Assumptions_Model`'s phasing block shifted two rows for the new resolved drivers and `Calc_Capex` still pointed at the old row — phasing read as zero, so capex, TPC, debt and both IRRs all collapsed to zero while most checks still said OK. Every cross-sheet row reference now comes from the source module's constant
+- Don't add a cost that depends on debt service into the tax computation — see the LC fee note above. Anything feeding `Calc_Tax` must be upstream of debt sizing, or it closes a loop with no breaker
+- Don't write a check that is true by construction. "MRA balance ≥ MRA target" was tautological (the balance *is* the target); it was replaced with "prior quarter's balance ≥ this quarter's capex", which actually fails if the lookforward window is wired backwards

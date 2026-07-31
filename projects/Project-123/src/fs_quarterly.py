@@ -2,6 +2,9 @@ from openpyxl.styles import Font
 from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.workbook import Workbook
 
+import calc_cfads as cfads
+import calc_financing_ops as fin_ops
+import calc_tax as tax
 from inputs import ProjectInputs
 from timeline import Timeline
 # Source-sheet row constants, imported rather than restated — see the note in calc_tax.py.
@@ -30,39 +33,44 @@ ROW_EBIT = 9
 ROW_INTEREST_EXPENSE = 10
 ROW_EBT = 11
 ROW_TAX = 12
-ROW_NET_INCOME = 13
+ROW_LC_FEE = 13  # below tax: non-deductible, see the note in calc_tax.py
+ROW_NET_INCOME = 14
 
 # Cash Flow
-ROW_CFO_NI = 15
-ROW_CFO_ADDBACK_DEPR = 16
-ROW_CFO = 17
-ROW_CFI = 18
-ROW_PRINCIPAL_REPAYMENT = 19
-ROW_DIVIDENDS_PAID = 20
-ROW_CFF = 21
-ROW_NET_CHANGE_CASH = 22
-ROW_OPENING_CASH = 23
-ROW_CLOSING_CASH = 24
+ROW_CFO_NI = 16
+ROW_CFO_ADDBACK_DEPR = 17
+ROW_CFO = 18
+ROW_CFI = 19
+ROW_PRINCIPAL_REPAYMENT = 20
+ROW_DSRA_FUNDING = 21
+ROW_MRA_FUNDING = 22
+ROW_DIVIDENDS_PAID = 23
+ROW_CFF = 24
+ROW_NET_CHANGE_CASH = 25
+ROW_OPENING_CASH = 26
+ROW_CLOSING_CASH = 27
 
 # Balance Sheet
-ROW_BS_CASH = 26
-ROW_BS_PPE_NET = 27
-ROW_BS_TOTAL_ASSETS = 28
-ROW_BS_DEBT = 29
-ROW_BS_PAID_IN_CAPITAL = 30
-ROW_BS_RETAINED_EARNINGS = 31
-ROW_BS_TOTAL_EQUITY = 32
-ROW_BS_TOTAL_LIAB_EQUITY = 33
+ROW_BS_CASH = 29
+ROW_BS_DSRA = 30
+ROW_BS_MRA = 31
+ROW_BS_PPE_NET = 32
+ROW_BS_TOTAL_ASSETS = 33
+ROW_BS_DEBT = 34
+ROW_BS_PAID_IN_CAPITAL = 35
+ROW_BS_RETAINED_EARNINGS = 36
+ROW_BS_TOTAL_EQUITY = 37
+ROW_BS_TOTAL_LIAB_EQUITY = 38
 
-ROW_CHECK_HEADER = 37
-ROW_CHECK_BS_BALANCES_COUNT = 38  # informational: # of quarters where BS does not balance
+ROW_CHECK_HEADER = 41
+ROW_CHECK_BS_BALANCES_COUNT = 42  # count of quarters where the BS does not balance
 
 
 def build_fs_quarterly(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) -> Worksheet:
     ws = wb.create_sheet("FS_Quarterly")
     ws.sheet_properties.tabColor = TAB_COLOR_OUTPUT
 
-    ws["A1"] = "FS_Quarterly — 3-Statements (Stage 1a: single vintage, no reserves, 100% FCFE payout)"
+    ws["A1"] = "FS_Quarterly — 3-Statements (reserves as restricted cash, 100% FCFE payout)"
     ws["A1"].font = Font(bold=True, size=12)
 
     _label(ws, ROW_DATE_HEADER, "Period End Date")
@@ -71,25 +79,30 @@ def build_fs_quarterly(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) 
     _label(ws, ROW_REVENUE, "Revenue ($)")
     _label(ws, ROW_OPEX, "Opex ($)")
     _label(ws, ROW_EBITDA, "EBITDA ($)")
-    _label(ws, ROW_DEPRECIATION, "Depreciation ($)")
+    _label(ws, ROW_DEPRECIATION, "Depreciation ($) — base vintage + maintenance vintages")
     _label(ws, ROW_EBIT, "EBIT ($)")
     _label(ws, ROW_INTEREST_EXPENSE, "Interest Expense ($)")
-    _label(ws, ROW_EBT, "EBT ($) — accounting, post-interest")
-    _label(ws, ROW_TAX, "Tax ($) — Stage 1a: computed pre-interest-shield (see Calc_Tax)")
+    _label(ws, ROW_EBT, "EBT ($)")
+    _label(ws, ROW_TAX, "Tax ($) — linked from Calc_Tax")
+    _label(ws, ROW_LC_FEE, "DSRA LC Fee ($) — non-deductible; zero when the DSRA is cash-funded")
     _label(ws, ROW_NET_INCOME, "Net Income ($)")
 
     _label(ws, ROW_CFO_NI, "Net Income ($)")
     _label(ws, ROW_CFO_ADDBACK_DEPR, "Add back: Depreciation ($)")
     _label(ws, ROW_CFO, "Cash Flow from Operations ($)")
-    _label(ws, ROW_CFI, "Cash Flow from Investing ($) — 0, no ops capex in Stage 1a")
+    _label(ws, ROW_CFI, "Cash Flow from Investing ($) — maintenance capex")
     _label(ws, ROW_PRINCIPAL_REPAYMENT, "Debt Principal Repayment ($)")
-    _label(ws, ROW_DIVIDENDS_PAID, "Dividends Paid ($) — 100% FCFE payout, Stage 1a")
+    _label(ws, ROW_DSRA_FUNDING, "DSRA Funding/(Release) ($) — the LC fee sits in the P&L above")
+    _label(ws, ROW_MRA_FUNDING, "MRA Funding/(Release) ($)")
+    _label(ws, ROW_DIVIDENDS_PAID, "Dividends Paid ($) — 100% FCFE payout")
     _label(ws, ROW_CFF, "Cash Flow from Financing ($)")
     _label(ws, ROW_NET_CHANGE_CASH, "Net Change in Cash ($)")
     _label(ws, ROW_OPENING_CASH, "Opening Cash ($)")
     _label(ws, ROW_CLOSING_CASH, "Closing Cash ($)")
 
-    _label(ws, ROW_BS_CASH, "Cash ($)")
+    _label(ws, ROW_BS_CASH, "Cash ($) — unrestricted")
+    _label(ws, ROW_BS_DSRA, "DSRA Balance ($) — restricted cash")
+    _label(ws, ROW_BS_MRA, "MRA Balance ($) — restricted cash")
     _label(ws, ROW_BS_PPE_NET, "PP&E, Net ($)")
     _label(ws, ROW_BS_TOTAL_ASSETS, "Total Assets ($)")
     _label(ws, ROW_BS_DEBT, "Debt ($)")
@@ -99,7 +112,7 @@ def build_fs_quarterly(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) 
     _label(ws, ROW_BS_TOTAL_LIAB_EQUITY, "Total Liabilities + Equity ($)")
 
     ws.cell(row=ROW_CHECK_HEADER, column=1, value="Checks").font = Font(bold=True)
-    _label(ws, ROW_CHECK_BS_BALANCES_COUNT, "Informational: # of quarters where BS does not balance")
+    _label(ws, ROW_CHECK_BS_BALANCES_COUNT, "# of quarters where BS does not balance")
 
     n_quarters = len(timeline.operations_quarters)
     last_cons_col = col_letter(len(timeline.construction_months) - 1)
@@ -115,21 +128,29 @@ def build_fs_quarterly(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) 
         _link(ws, col, ROW_REVENUE, f"Calc_Revenue_Opex!{col}{REVOPEX_ROW_REVENUE}")
         _link(ws, col, ROW_OPEX, f"Calc_Revenue_Opex!{col}{REVOPEX_ROW_OPEX}")
         _link(ws, col, ROW_EBITDA, f"Calc_Revenue_Opex!{col}{REVOPEX_ROW_EBITDA}")
-        _link(ws, col, ROW_DEPRECIATION, f"Calc_Tax!{col}6")
+        _link(ws, col, ROW_DEPRECIATION, f"Calc_Tax!{col}{tax.ROW_TOTAL_DEPRECIATION}")
         _formula(ws, col, ROW_EBIT, f"={col}{ROW_EBITDA}-{col}{ROW_DEPRECIATION}")
-        _link(ws, col, ROW_INTEREST_EXPENSE, f"Calc_Financing_Ops!{col}17")
+        _link(ws, col, ROW_INTEREST_EXPENSE, f"Calc_Financing_Ops!{col}{fin_ops.ROW_INTEREST}")
         _formula(ws, col, ROW_EBT, f"={col}{ROW_EBIT}-{col}{ROW_INTEREST_EXPENSE}")
-        _link(ws, col, ROW_TAX, f"Calc_Tax!{col}9")
-        _formula(ws, col, ROW_NET_INCOME, f"={col}{ROW_EBT}-{col}{ROW_TAX}")
+        _link(ws, col, ROW_TAX, f"Calc_Tax!{col}{tax.ROW_TAX}")
+        _link(ws, col, ROW_LC_FEE, f"Calc_Financing_Ops!{col}{fin_ops.ROW_DSRA_LC_FEE}")
+        _formula(ws, col, ROW_NET_INCOME, f"={col}{ROW_EBT}-{col}{ROW_TAX}-{col}{ROW_LC_FEE}")
 
         _formula(ws, col, ROW_CFO_NI, f"={col}{ROW_NET_INCOME}")
         _formula(ws, col, ROW_CFO_ADDBACK_DEPR, f"={col}{ROW_DEPRECIATION}")
         _formula(ws, col, ROW_CFO, f"={col}{ROW_CFO_NI}+{col}{ROW_CFO_ADDBACK_DEPR}")
-        _formula(ws, col, ROW_CFI, "=0")
-        _link(ws, col, ROW_PRINCIPAL_REPAYMENT, f"Calc_Financing_Ops!{col}20")
-        _link(ws, col, ROW_DIVIDENDS_PAID, f"Calc_CFADS!{col}7")
-        _formula(ws, col, ROW_CFF, f"=-{col}{ROW_PRINCIPAL_REPAYMENT}-{col}{ROW_DIVIDENDS_PAID}")
-        _formula(ws, col, ROW_NET_CHANGE_CASH, f"={col}{ROW_CFO}+{col}{ROW_CFI}+{col}{ROW_CFF}")
+        _formula(ws, col, ROW_CFI, f"=-Calc_CFADS!{col}{cfads.ROW_MAINT_CAPEX}")
+        _link(ws, col, ROW_PRINCIPAL_REPAYMENT, f"Calc_Financing_Ops!{col}{fin_ops.ROW_PRINCIPAL}")
+        # Only the reserve's balance movement belongs here — the LC fee already reduced
+        # cash through net income, so taking it again would double-count it.
+        _link(ws, col, ROW_DSRA_FUNDING, f"Calc_Financing_Ops!{col}{fin_ops.ROW_DSRA_FUNDING}")
+        _link(ws, col, ROW_MRA_FUNDING, f"Calc_CFADS!{col}{cfads.ROW_MRA_FUNDING}")
+        _link(ws, col, ROW_DIVIDENDS_PAID, f"Calc_CFADS!{col}{cfads.ROW_FCFE}")
+        _formula(ws, col, ROW_CFF,
+                 f"=-{col}{ROW_PRINCIPAL_REPAYMENT}-{col}{ROW_DSRA_FUNDING}"
+                 f"-{col}{ROW_MRA_FUNDING}-{col}{ROW_DIVIDENDS_PAID}")
+        _formula(ws, col, ROW_NET_CHANGE_CASH,
+                 f"={col}{ROW_CFO}+{col}{ROW_CFI}+{col}{ROW_CFF}")
 
         if i == 0:
             _formula(ws, col, ROW_OPENING_CASH, "=0")
@@ -138,25 +159,33 @@ def build_fs_quarterly(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) 
         _formula(ws, col, ROW_CLOSING_CASH, f"={col}{ROW_OPENING_CASH}+{col}{ROW_NET_CHANGE_CASH}")
 
         _formula(ws, col, ROW_BS_CASH, f"={col}{ROW_CLOSING_CASH}")
-        if i == 0:
-            _formula(ws, col, ROW_BS_PPE_NET, f"=Calc_Capex!${last_cons_col}$17-{col}{ROW_DEPRECIATION}")
-        else:
-            _formula(ws, col, ROW_BS_PPE_NET, f"={prev_col}{ROW_BS_PPE_NET}-{col}{ROW_DEPRECIATION}")
-        _formula(ws, col, ROW_BS_TOTAL_ASSETS, f"={col}{ROW_BS_CASH}+{col}{ROW_BS_PPE_NET}")
+        # Reserves are cash the project holds but cannot distribute — assets in their own
+        # right, so the LC-backed case correctly shows no asset and only a fee.
+        _link(ws, col, ROW_BS_DSRA, f"Calc_Financing_Ops!{col}{fin_ops.ROW_DSRA_BALANCE}")
+        _link(ws, col, ROW_BS_MRA, f"Calc_CFADS!{col}{cfads.ROW_MRA_BALANCE}")
 
-        _link(ws, col, ROW_BS_DEBT, f"Calc_Financing_Ops!{col}21")
+        # CFI is already negative, so subtracting it capitalises the maintenance spend.
+        if i == 0:
+            _formula(ws, col, ROW_BS_PPE_NET,
+                     f"=Calc_Capex!${last_cons_col}$17-{col}{ROW_CFI}-{col}{ROW_DEPRECIATION}")
+        else:
+            _formula(ws, col, ROW_BS_PPE_NET,
+                     f"={prev_col}{ROW_BS_PPE_NET}-{col}{ROW_CFI}-{col}{ROW_DEPRECIATION}")
+        _formula(ws, col, ROW_BS_TOTAL_ASSETS,
+                 f"={col}{ROW_BS_CASH}+{col}{ROW_BS_DSRA}+{col}{ROW_BS_MRA}+{col}{ROW_BS_PPE_NET}")
+
+        _link(ws, col, ROW_BS_DEBT, f"Calc_Financing_Ops!{col}{fin_ops.ROW_CLOSING_BAL}")
         _link(ws, col, ROW_BS_PAID_IN_CAPITAL, f"Calc_Capex!${last_cons_col}$13")
         if i == 0:
-            _formula(ws, col, ROW_BS_RETAINED_EARNINGS, f"={col}{ROW_NET_INCOME}-{col}{ROW_DIVIDENDS_PAID}")
+            _formula(ws, col, ROW_BS_RETAINED_EARNINGS,
+                     f"={col}{ROW_NET_INCOME}-{col}{ROW_DIVIDENDS_PAID}")
         else:
-            _formula(
-                ws,
-                col,
-                ROW_BS_RETAINED_EARNINGS,
-                f"={prev_col}{ROW_BS_RETAINED_EARNINGS}+{col}{ROW_NET_INCOME}-{col}{ROW_DIVIDENDS_PAID}",
-            )
-        _formula(ws, col, ROW_BS_TOTAL_EQUITY, f"={col}{ROW_BS_PAID_IN_CAPITAL}+{col}{ROW_BS_RETAINED_EARNINGS}")
-        _formula(ws, col, ROW_BS_TOTAL_LIAB_EQUITY, f"={col}{ROW_BS_DEBT}+{col}{ROW_BS_TOTAL_EQUITY}")
+            _formula(ws, col, ROW_BS_RETAINED_EARNINGS,
+                     f"={prev_col}{ROW_BS_RETAINED_EARNINGS}+{col}{ROW_NET_INCOME}-{col}{ROW_DIVIDENDS_PAID}")
+        _formula(ws, col, ROW_BS_TOTAL_EQUITY,
+                 f"={col}{ROW_BS_PAID_IN_CAPITAL}+{col}{ROW_BS_RETAINED_EARNINGS}")
+        _formula(ws, col, ROW_BS_TOTAL_LIAB_EQUITY,
+                 f"={col}{ROW_BS_DEBT}+{col}{ROW_BS_TOTAL_EQUITY}")
 
     first_col = col_letter(0)
     last_col = col_letter(n_quarters - 1)
@@ -172,6 +201,7 @@ def build_fs_quarterly(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) 
     _add_named_range(wb, "FSQ_BSBalancesFailCount", "FS_Quarterly", f"{last_col}{ROW_CHECK_BS_BALANCES_COUNT}")
 
     ws.freeze_panes = ws.cell(row=ROW_BS_TOTAL_LIAB_EQUITY + 1, column=FIRST_DATA_COL)
+    ws.column_dimensions["A"].width = 52
 
     return ws
 

@@ -4,6 +4,8 @@ from openpyxl.workbook import Workbook
 
 from inputs import ProjectInputs
 from timeline import Timeline
+import assumptions_constant as const
+import assumptions_periodic_capex as per_capex
 from workbook_builder import FIRST_DATA_COL, COLOR_LINK, TAB_COLOR_INPUT, col_letter
 
 ROW_TOTAL_CAPEX = 3
@@ -17,10 +19,12 @@ ROW_TAX_RATE = 10
 ROW_USEFUL_LIFE_YEARS = 11
 
 ROW_MAX_GEARING = 12
+ROW_ROUTINE_MAINT_PCT = 13
+ROW_DSRA_LC_FEE = 14
 
-ROW_PHASING_LABEL = 14
-ROW_PHASING_DATE = 15
-ROW_PHASING_PCT = 16
+ROW_PHASING_LABEL = 16
+ROW_PHASING_DATE = 17
+ROW_PHASING_PCT = 18
 
 # Cell refs (single-scenario, Stage 1b interim — becomes Assumptions_Constant's Active
 # column and Assumptions_Periodic_Capex's Active row once Stage 1c scales to 10 scenarios)
@@ -47,17 +51,23 @@ def build_assumptions_model(wb: Workbook, timeline: Timeline, inputs: ProjectInp
     )
     ws["A2"].font = Font(italic=True, size=9)
 
-    # Rows on Assumptions_Constant, in the order its DRIVERS list defines them.
-    _resolved(ws, "A3", "Total Capex ($)", CELL_TOTAL_CAPEX, 6, "#,##0")
-    _resolved(ws, "A4", "Gearing (Debt % of TPC)", CELL_DEBT_PCT, 7, "0.00%")
-    _resolved(ws, "A5", "Interest Rate (Annual)", CELL_INTEREST_RATE, 8, "0.00%")
-    _resolved(ws, "A6", "Debt Tenor (Years)", CELL_DEBT_TENOR_YEARS, 9, "0")
-    _resolved(ws, "A7", "Target DSCR", CELL_TARGET_DSCR, 10, "0.00x")
-    _resolved(ws, "A8", "Annual Revenue ($) — base, pre-index and pre-escalation", CELL_ANNUAL_REVENUE, 11, "#,##0")
-    _resolved(ws, "A9", "Opex % of Revenue", CELL_OPEX_PCT, 12, "0.00%")
-    _resolved(ws, "A10", "Tax Rate", CELL_TAX_RATE, 13, "0.00%")
-    _resolved(ws, "A11", "Useful Life (Years)", CELL_USEFUL_LIFE_YEARS, 14, "0")
-    _resolved(ws, "A12", "Max Gearing (cap on DSCR-sculpted debt size)", "B12", 15, "0.00%")
+    # Source rows come from Assumptions_Constant's own constants, so adding a driver there
+    # can't silently shift what this sheet resolves.
+    _resolved(ws, "A3", "Total Capex ($)", CELL_TOTAL_CAPEX, const.ROW_TOTAL_CAPEX, "#,##0")
+    _resolved(ws, "A4", "Gearing (Debt % of TPC)", CELL_DEBT_PCT, const.ROW_GEARING, "0.00%")
+    _resolved(ws, "A5", "Interest Rate (Annual)", CELL_INTEREST_RATE, const.ROW_INTEREST_RATE, "0.00%")
+    _resolved(ws, "A6", "Debt Tenor (Years)", CELL_DEBT_TENOR_YEARS, const.ROW_DEBT_TENOR, "0")
+    _resolved(ws, "A7", "Target DSCR", CELL_TARGET_DSCR, const.ROW_TARGET_DSCR, "0.00x")
+    _resolved(ws, "A8", "Annual Revenue ($) — base, pre-index and pre-escalation",
+              CELL_ANNUAL_REVENUE, const.ROW_ANNUAL_REVENUE, "#,##0")
+    _resolved(ws, "A9", "Opex % of Revenue", CELL_OPEX_PCT, const.ROW_OPEX_PCT, "0.00%")
+    _resolved(ws, "A10", "Tax Rate", CELL_TAX_RATE, const.ROW_TAX_RATE, "0.00%")
+    _resolved(ws, "A11", "Useful Life (Years)", CELL_USEFUL_LIFE_YEARS, const.ROW_USEFUL_LIFE, "0")
+    _resolved(ws, "A12", "Max Gearing (cap on DSCR-sculpted debt size)", "B12", const.ROW_MAX_GEARING, "0.00%")
+    _resolved(ws, f"A{ROW_ROUTINE_MAINT_PCT}", "Routine Maint Capex (% of Revenue)",
+              f"B{ROW_ROUTINE_MAINT_PCT}", const.ROW_ROUTINE_MAINT_PCT, "0.00%")
+    _resolved(ws, f"A{ROW_DSRA_LC_FEE}", "DSRA LC Fee (% p.a. on requirement)",
+              f"B{ROW_DSRA_LC_FEE}", const.ROW_DSRA_LC_FEE, "0.00%")
 
     ws.cell(row=ROW_PHASING_LABEL, column=1,
             value="Capex Phasing % — resolved from Assumptions_Periodic_Capex Active row").font = Font(bold=True)
@@ -71,7 +81,7 @@ def build_assumptions_model(wb: Workbook, timeline: Timeline, inputs: ProjectInp
         date_cell.number_format = "mmm-yy"
 
         pct_cell = ws[f"{col}{ROW_PHASING_PCT}"]
-        pct_cell.value = f"=Assumptions_Periodic_Capex!{col}18"  # ROW_ACTIVE on that sheet
+        pct_cell.value = f"=Assumptions_Periodic_Capex!{col}{per_capex.ROW_ACTIVE}"
         pct_cell.font = Font(color=COLOR_LINK)
         pct_cell.number_format = "0.00%"
 

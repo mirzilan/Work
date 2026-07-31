@@ -2,13 +2,14 @@ from openpyxl.styles import Font
 from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.workbook import Workbook
 
+import calc_cfads as cfads
+import fs_quarterly as fsq
 from inputs import ProjectInputs
 from timeline import Timeline
 from workbook_builder import (
     FIRST_DATA_COL,
     COLOR_FORMULA,
     COLOR_LINK,
-    COLOR_INPUT,
     TAB_COLOR_OUTPUT,
 )
 import openpyxl.utils
@@ -75,35 +76,21 @@ def build_fs_annual(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) -> 
         q_cols = [_quarterly_source_col(timeline, q) for q in quarters]
         first_q_col, last_q_col = q_cols[0], q_cols[-1]
 
-        rev_cell = ws[f"{col}{ROW_REVENUE}"]
-        rev_cell.value = f"=SUM(FS_Quarterly!{first_q_col}5:{last_q_col}5)"
-        rev_cell.font = Font(color=COLOR_LINK)
-        rev_cell.number_format = "#,##0"
-
-        ebitda_cell = ws[f"{col}{ROW_EBITDA}"]
-        ebitda_cell.value = f"=SUM(FS_Quarterly!{first_q_col}7:{last_q_col}7)"
-        ebitda_cell.font = Font(color=COLOR_LINK)
-        ebitda_cell.number_format = "#,##0"
-
-        ni_cell = ws[f"{col}{ROW_NET_INCOME}"]
-        ni_cell.value = f"=SUM(FS_Quarterly!{first_q_col}13:{last_q_col}13)"
-        ni_cell.font = Font(color=COLOR_LINK)
-        ni_cell.number_format = "#,##0"
-
-        cash_cell = ws[f"{col}{ROW_CASH_CLOSING}"]
-        cash_cell.value = f"=FS_Quarterly!{last_q_col}26"
-        cash_cell.font = Font(color=COLOR_LINK)
-        cash_cell.number_format = "#,##0"
-
-        debt_cell = ws[f"{col}{ROW_DEBT_CLOSING}"]
-        debt_cell.value = f"=FS_Quarterly!{last_q_col}29"
-        debt_cell.font = Font(color=COLOR_LINK)
-        debt_cell.number_format = "#,##0"
-
-        equity_cell = ws[f"{col}{ROW_TOTAL_EQUITY_CLOSING}"]
-        equity_cell.value = f"=FS_Quarterly!{last_q_col}32"
-        equity_cell.font = Font(color=COLOR_LINK)
-        equity_cell.number_format = "#,##0"
+        for row, src_row, is_sum in (
+            (ROW_REVENUE, fsq.ROW_REVENUE, True),
+            (ROW_EBITDA, fsq.ROW_EBITDA, True),
+            (ROW_NET_INCOME, fsq.ROW_NET_INCOME, True),
+            (ROW_CASH_CLOSING, fsq.ROW_BS_CASH, False),
+            (ROW_DEBT_CLOSING, fsq.ROW_BS_DEBT, False),
+            (ROW_TOTAL_EQUITY_CLOSING, fsq.ROW_BS_TOTAL_EQUITY, False),
+        ):
+            cell = ws[f"{col}{row}"]
+            if is_sum:
+                cell.value = f"=SUM(FS_Quarterly!{first_q_col}{src_row}:{last_q_col}{src_row})"
+            else:
+                cell.value = f"=FS_Quarterly!{last_q_col}{src_row}"
+            cell.font = Font(color=COLOR_LINK)
+            cell.number_format = "#,##0"
 
     _build_xirr_block(ws, wb, timeline)
 
@@ -217,13 +204,14 @@ def _build_xirr_block(ws: Worksheet, wb: Workbook, timeline: Timeline) -> None:
         date_cell.font = Font(color=COLOR_LINK)
         date_cell.number_format = "mmm-yy"
 
+        # FCFF and FCFE are both built once on Calc_CFADS and only referenced here.
         proj_cf_cell = ws[f"{col}{ROW_XIRR_PROJECT_CF}"]
-        proj_cf_cell.value = f"=Calc_CFADS!{ops_col_in_source}5"  # ROW_CFADS, Stage 1a proxy for FCFF
+        proj_cf_cell.value = f"=Calc_CFADS!{ops_col_in_source}{cfads.ROW_FCFF}"
         proj_cf_cell.font = Font(color=COLOR_LINK)
         proj_cf_cell.number_format = "#,##0"
 
         equity_cf_cell = ws[f"{col}{ROW_XIRR_EQUITY_CF}"]
-        equity_cf_cell.value = f"=Calc_CFADS!{ops_col_in_source}7"  # ROW_FCFE
+        equity_cf_cell.value = f"=Calc_CFADS!{ops_col_in_source}{cfads.ROW_FCFE}"
         equity_cf_cell.font = Font(color=COLOR_LINK)
         equity_cf_cell.number_format = "#,##0"
 

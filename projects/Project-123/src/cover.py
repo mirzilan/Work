@@ -3,6 +3,7 @@ from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.workbook import Workbook
 
+import assumptions_model as model
 from workbook_builder import COLOR_INPUT, COLOR_LINK, TAB_COLOR_INPUT
 
 CELL_CIRC_TOLERANCE = "B4"
@@ -14,35 +15,46 @@ CELL_MASTER_CHECK_LINK = "B9"
 CELL_DRAWDOWN_METHOD = "B14"
 CELL_DEBT_SIZING_MODE = "B17"
 CELL_ACTIVE_SCENARIO = "B20"
+CELL_DSRA_METHOD = "B23"
+
+ABS_DSRA_METHOD = "$B$23"
 
 DRAWDOWN_METHODS = ["Debt First", "Equity First", "Pari Passu"]
 DEBT_SIZING_MODES = ["Fixed Gearing", "DSCR Sculpted"]
+DSRA_METHODS = ["Cash Funded", "LC-Backed"]
 N_SCENARIOS = 10
 
-ROW_FRESHNESS_HEADER = 23
-ROW_LAST_SOLVED = 24
-ROW_SOLVE_STATUS = 25
-ROW_SNAPSHOT_TABLE_HEADER = 27
-ROW_FIRST_SNAPSHOT = 28
+ROW_FRESHNESS_HEADER = 27
+ROW_LAST_SOLVED = 28
+ROW_SOLVE_STATUS = 29
+ROW_SNAPSHOT_TABLE_HEADER = 31
+ROW_FIRST_SNAPSHOT = 32
 
 # (label, live-value formula) — every input a solve depends on. Tracking them individually
 # rather than as one hashed checksum means the model names the assumption that moved.
 TRACKED_INPUTS = [
-    ("Total Capex", "=Assumptions_Model!$B$3"),
-    ("Gearing", "=Assumptions_Model!$B$4"),
-    ("Interest Rate", "=Assumptions_Model!$B$5"),
-    ("Debt Tenor (Years)", "=Assumptions_Model!$B$6"),
-    ("Target DSCR", "=Assumptions_Model!$B$7"),
-    ("Annual Revenue", "=Assumptions_Model!$B$8"),
-    ("Opex % of Revenue", "=Assumptions_Model!$B$9"),
-    ("Tax Rate", "=Assumptions_Model!$B$10"),
-    ("Useful Life (Years)", "=Assumptions_Model!$B$11"),
-    ("Max Gearing", "=Assumptions_Model!$B$12"),
-    ("Drawdown Method", "=$B$14"),
-    ("Debt Sizing Mode", "=$B$17"),
-    ("Active Scenario", "=$B$20"),
+    ("Total Capex", f"=Assumptions_Model!$B${model.ROW_TOTAL_CAPEX}"),
+    ("Gearing", f"=Assumptions_Model!$B${model.ROW_DEBT_PCT}"),
+    ("Interest Rate", f"=Assumptions_Model!$B${model.ROW_INTEREST_RATE}"),
+    ("Debt Tenor (Years)", f"=Assumptions_Model!$B${model.ROW_DEBT_TENOR_YEARS}"),
+    ("Target DSCR", f"=Assumptions_Model!$B${model.ROW_TARGET_DSCR}"),
+    ("Annual Revenue", f"=Assumptions_Model!$B${model.ROW_ANNUAL_REVENUE}"),
+    ("Opex % of Revenue", f"=Assumptions_Model!$B${model.ROW_OPEX_PCT}"),
+    ("Tax Rate", f"=Assumptions_Model!$B${model.ROW_TAX_RATE}"),
+    ("Useful Life (Years)", f"=Assumptions_Model!$B${model.ROW_USEFUL_LIFE_YEARS}"),
+    ("Max Gearing", f"=Assumptions_Model!$B${model.ROW_MAX_GEARING}"),
+    ("Routine Maint Capex %", f"=Assumptions_Model!$B${model.ROW_ROUTINE_MAINT_PCT}"),
+    ("DSRA LC Fee", f"=Assumptions_Model!$B${model.ROW_DSRA_LC_FEE}"),
+    ("Drawdown Method", f"={CELL_DRAWDOWN_METHOD.replace('B', '$B$')}"),
+    ("Debt Sizing Mode", f"={CELL_DEBT_SIZING_MODE.replace('B', '$B$')}"),
+    ("DSRA Funding Method", f"={ABS_DSRA_METHOD}"),
+    ("Active Scenario", f"={CELL_ACTIVE_SCENARIO.replace('B', '$B$')}"),
     ("Capex Phasing (signature)", None),  # filled in at build time — needs the timeline width
 ]
+
+# Row of the single flag Check_Control pulls. Derived, so adding a tracked input above
+# cannot leave Check_Control pointing at a blank cell.
+ROW_FRESHNESS_FLAG = ROW_FIRST_SNAPSHOT + len(TRACKED_INPUTS) + 1
 
 
 def build_cover(wb: Workbook, n_construction_months: int = 24) -> Worksheet:
@@ -150,6 +162,28 @@ def build_cover(wb: Workbook, n_construction_months: int = 24) -> Worksheet:
     )
     ws["A21"].font = Font(italic=True, size=9)
 
+    ws["A23"] = "DSRA Funding Method"
+    ws["A23"].font = Font(bold=True)
+    dsra_cell = ws[CELL_DSRA_METHOD]
+    dsra_cell.value = DSRA_METHODS[0]
+    dsra_cell.font = Font(color=COLOR_INPUT)
+
+    dsra_validation = DataValidation(
+        type="list",
+        formula1=f'"{",".join(DSRA_METHODS)}"',
+        allow_blank=False,
+        showDropDown=False,
+    )
+    ws.add_data_validation(dsra_validation)
+    dsra_validation.add(dsra_cell)
+
+    ws["A24"] = (
+        "Cash Funded: CFADS is trapped to hold the reserve at target, released as the "
+        "requirement falls. LC-Backed: no cash trapped — a recurring LC fee is charged on "
+        "the requirement instead, and the fee is a tax-deductible P&L cost."
+    )
+    ws["A24"].font = Font(italic=True, size=9)
+
     _build_freshness_block(ws, wb, n_construction_months)
 
     _add_named_range(wb, "Cover_CircTolerance", "Cover", CELL_CIRC_TOLERANCE)
@@ -157,6 +191,7 @@ def build_cover(wb: Workbook, n_construction_months: int = 24) -> Worksheet:
     _add_named_range(wb, "Cover_MaxIterations", "Cover", CELL_MAX_ITERATIONS)
     _add_named_range(wb, "Cover_DebtSizingTolerance", "Cover", CELL_DEBT_SIZING_TOLERANCE)
     _add_named_range(wb, "Cover_DrawdownMethod", "Cover", CELL_DRAWDOWN_METHOD)
+    _add_named_range(wb, "Cover_DSRAMethod", "Cover", CELL_DSRA_METHOD)
     _add_named_range(wb, "ActiveScenario", "Cover", CELL_ACTIVE_SCENARIO)
 
     ws.column_dimensions["A"].width = 45
@@ -193,10 +228,9 @@ def _build_freshness_block(ws: Worksheet, wb: Workbook, n_construction_months: i
         cell.font = Font(bold=True)
 
     phasing_last_col = get_column_letter(3 + n_construction_months - 1)
-    phasing_signature = (
-        f"=SUMPRODUCT(Assumptions_Model!$C$16:${phasing_last_col}$16,"
-        f"COLUMN(Assumptions_Model!$C$16:${phasing_last_col}$16))"
-    )
+    phasing_row = model.ROW_PHASING_PCT
+    phasing_range = f"Assumptions_Model!$C${phasing_row}:${phasing_last_col}${phasing_row}"
+    phasing_signature = f"=SUMPRODUCT({phasing_range},COLUMN({phasing_range}))"
 
     for i, (label, formula) in enumerate(TRACKED_INPUTS):
         row = ROW_FIRST_SNAPSHOT + i
@@ -215,13 +249,13 @@ def _build_freshness_block(ws: Worksheet, wb: Workbook, n_construction_months: i
 
     # Single flag Check_Control can pull: 1 when every tracked input still matches its
     # value at the last solve.
-    freshness_flag = ws.cell(row=last_row + 2, column=4)
+    freshness_flag = ws.cell(row=ROW_FRESHNESS_FLAG, column=4)
     freshness_flag.value = f"=IF(COUNTIF(D{ROW_FIRST_SNAPSHOT}:D{last_row},0)=0,1,0)"
-    ws.cell(row=last_row + 2, column=1, value="Check: Solve is current")
+    ws.cell(row=ROW_FRESHNESS_FLAG, column=1, value="Check: Solve is current")
 
     _add_named_range(wb, "LastSolvedStamp", "Cover", f"B{ROW_LAST_SOLVED}")
     _add_named_range(wb, "SolveStatus", "Cover", f"B{ROW_SOLVE_STATUS}")
-    _add_named_range(wb, "SolveFreshnessFlag", "Cover", f"D{last_row + 2}")
+    _add_named_range(wb, "SolveFreshnessFlag", "Cover", f"D{ROW_FRESHNESS_FLAG}")
 
     from openpyxl.workbook.defined_name import DefinedName
 

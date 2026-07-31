@@ -2,11 +2,11 @@ from openpyxl.styles import Font
 from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.workbook import Workbook
 
+import assumptions_model as model
 from inputs import ProjectInputs
 from timeline import Timeline
 from workbook_builder import (
     FIRST_DATA_COL,
-    COLOR_INPUT,
     COLOR_FORMULA,
     COLOR_LINK,
     TAB_COLOR_CALC,
@@ -80,7 +80,7 @@ def build_calc_capex(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) ->
 
         # Phasing % — green link from Assumptions_Model (same column alignment)
         phasing_cell = ws[f"{col}{ROW_PHASING_PCT}"]
-        phasing_cell.value = f"=Assumptions_Model!{col}16"  # ROW_PHASING_PCT in assumptions_model.py
+        phasing_cell.value = f"=Assumptions_Model!{col}{model.ROW_PHASING_PCT}"
         phasing_cell.font = Font(color=COLOR_LINK)
         phasing_cell.number_format = "0.00%"
 

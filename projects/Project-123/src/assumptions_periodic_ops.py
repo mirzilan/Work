@@ -2,6 +2,7 @@ from openpyxl.styles import Font
 from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.workbook import Workbook
 
+import assumptions_constant as const
 from inputs import ProjectInputs
 from timeline import Timeline
 from workbook_builder import (
@@ -27,23 +28,30 @@ ROW_OPEX_BLOCK_TITLE = 20
 ROW_OPEX_FIRST_SCENARIO = 21
 ROW_OPEX_ACTIVE = ROW_OPEX_FIRST_SCENARIO + N_SCENARIOS        # 31
 
-ROW_ESC_TITLE = 34
-ROW_ESC_HEADER = 35
-ROW_ESC_FIRST_FACTOR = 36                                      # factors 1-4 -> rows 36-39
+# Lumpy/overhaul maintenance capex in dollars. Routine maintenance is a % of revenue and
+# lives on Assumptions_Constant — only the irregular, date-specific spend needs a profile.
+ROW_MAINT_BLOCK_TITLE = 33
+ROW_MAINT_FIRST_SCENARIO = 34
+ROW_MAINT_ACTIVE = ROW_MAINT_FIRST_SCENARIO + N_SCENARIOS      # 44
+
+ROW_ESC_TITLE = 47
+ROW_ESC_HEADER = 48
+ROW_ESC_FIRST_FACTOR = 49                                      # factors 1-4 -> rows 49-52
 ROW_ESC_LAST_FACTOR = ROW_ESC_FIRST_FACTOR + N_ESC_FACTORS - 1
 
-ROW_REV_ESC_SELECTOR = 41
-ROW_OPEX_ESC_SELECTOR = 42
-ROW_REV_ESC_ACTIVE = 44
-ROW_OPEX_ESC_ACTIVE = 45
+ROW_REV_ESC_SELECTOR = 54
+ROW_OPEX_ESC_SELECTOR = 55
+ROW_REV_ESC_ACTIVE = 57
+ROW_OPEX_ESC_ACTIVE = 58
 
-ROW_CHECK_HEADER = 48
-ROW_CHECK_ESC_BASE = 49
-ROW_CHECK_VOLUME_POSITIVE = 50
+ROW_CHECK_HEADER = 61
+ROW_CHECK_ESC_BASE = 62
+ROW_CHECK_VOLUME_POSITIVE = 63
+ROW_CHECK_MAINT_NONNEG = 64
 
 # Escalation rates live on Assumptions_Constant so they vary by scenario; only the index
 # derivation belongs here, at this sheet's own resolution.
-CONST_ESC_FACTOR_FIRST_ROW = 16
+CONST_ESC_FACTOR_FIRST_ROW = const.ROW_ESC_FACTOR_1
 
 
 def build_assumptions_periodic_ops(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) -> Worksheet:
@@ -77,11 +85,17 @@ def build_assumptions_periodic_ops(wb: Workbook, timeline: Timeline, inputs: Pro
     _volume_block(ws, n_q, ROW_OPEX_BLOCK_TITLE, ROW_OPEX_FIRST_SCENARIO, ROW_OPEX_ACTIVE,
                   "Opex Volume Index (by scenario)", "ACTIVE — Opex Volume Index")
 
+    _maintenance_block(ws, n_q, inputs)
     _escalation_library(ws, n_q)
 
     ws.cell(row=ROW_CHECK_HEADER, column=1, value="Checks").font = Font(bold=True)
     ws.cell(row=ROW_CHECK_ESC_BASE, column=1, value="Check: All escalation indices start at 1.00")
     ws.cell(row=ROW_CHECK_VOLUME_POSITIVE, column=1, value="Check: Active volume indices > 0 in every quarter")
+    ws.cell(row=ROW_CHECK_MAINT_NONNEG, column=1, value="Check: Active lumpy maintenance capex >= 0 in every quarter")
+
+    maint_nonneg = ws.cell(row=ROW_CHECK_MAINT_NONNEG, column=2)
+    maint_nonneg.value = f"=IF(MIN({first_col}{ROW_MAINT_ACTIVE}:{last_col}{ROW_MAINT_ACTIVE})>=0,1,0)"
+    maint_nonneg.font = Font(color=COLOR_FORMULA)
 
     esc_base = ws.cell(row=ROW_CHECK_ESC_BASE, column=2)
     esc_base.value = (
@@ -98,6 +112,7 @@ def build_assumptions_periodic_ops(wb: Workbook, timeline: Timeline, inputs: Pro
 
     _name(wb, "PerOps_EscBaseCheck", "Assumptions_Periodic_Ops", f"B{ROW_CHECK_ESC_BASE}")
     _name(wb, "PerOps_VolumePositiveCheck", "Assumptions_Periodic_Ops", f"B{ROW_CHECK_VOLUME_POSITIVE}")
+    _name(wb, "PerOps_MaintNonNegCheck", "Assumptions_Periodic_Ops", f"B{ROW_CHECK_MAINT_NONNEG}")
 
     ws.column_dimensions["A"].width = 44
     ws.freeze_panes = ws.cell(row=ROW_REV_BLOCK_TITLE + 1, column=FIRST_DATA_COL)
@@ -125,6 +140,34 @@ def _volume_block(ws: Worksheet, n_q: int, title_row: int, first_row: int, activ
         cell.value = f"=INDEX({col}${first_row}:{col}${first_row + N_SCENARIOS - 1},Cover!$B$20)"
         cell.font = Font(color=COLOR_FORMULA)
         cell.number_format = "0.000"
+
+
+def _maintenance_block(ws: Worksheet, n_q: int, inputs: ProjectInputs) -> None:
+    ws.cell(row=ROW_MAINT_BLOCK_TITLE, column=1,
+            value="Lumpy Maintenance Capex ($, by scenario) — overhauls; routine spend is a % of revenue").font = Font(bold=True)
+    ws.cell(row=ROW_MAINT_ACTIVE, column=1, value="ACTIVE — Lumpy Maintenance Capex ($)").font = Font(bold=True)
+
+    every = inputs.maintenance.lumpy_overhaul_every_n_quarters
+    amount = inputs.maintenance.lumpy_overhaul_amount
+
+    for s in range(N_SCENARIOS):
+        row = ROW_MAINT_FIRST_SCENARIO + s
+        ws.cell(row=row, column=1, value=f"Scenario {s + 1}")
+        for i in range(n_q):
+            cell = ws[f"{col_letter(i)}{row}"]
+            cell.value = amount if every > 0 and (i + 1) % every == 0 else 0.0
+            cell.font = Font(color=COLOR_INPUT)
+            cell.number_format = "#,##0"
+
+    for i in range(n_q):
+        col = col_letter(i)
+        cell = ws[f"{col}{ROW_MAINT_ACTIVE}"]
+        cell.value = (
+            f"=INDEX({col}${ROW_MAINT_FIRST_SCENARIO}:"
+            f"{col}${ROW_MAINT_FIRST_SCENARIO + N_SCENARIOS - 1},Cover!$B$20)"
+        )
+        cell.font = Font(color=COLOR_FORMULA)
+        cell.number_format = "#,##0"
 
 
 def _escalation_library(ws: Worksheet, n_q: int) -> None:

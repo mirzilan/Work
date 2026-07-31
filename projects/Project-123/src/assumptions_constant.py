@@ -41,6 +41,8 @@ DRIVERS = [
     ("Escalation Factor 2 (Annual %)", "0.00%", 0.0, 0.0, 0.0),
     ("Escalation Factor 3 (Annual %)", "0.00%", 0.025, 0.020, 0.040),
     ("Escalation Factor 4 (Annual %)", "0.00%", 0.030, 0.025, 0.045),
+    ("Routine Maint Capex (% of Revenue)", "0.00%", 0.015, 0.012, 0.020),
+    ("DSRA LC Fee (% p.a. on requirement)", "0.00%", 0.015, 0.015, 0.020),
 ]
 
 # Row offsets so other modules can reference a driver without hardcoding row numbers.
@@ -55,6 +57,8 @@ ROW_TAX_RATE = ROW_FIRST_DRIVER + 7
 ROW_USEFUL_LIFE = ROW_FIRST_DRIVER + 8
 ROW_MAX_GEARING = ROW_FIRST_DRIVER + 9
 ROW_ESC_FACTOR_1 = ROW_FIRST_DRIVER + 10
+ROW_ROUTINE_MAINT_PCT = ROW_FIRST_DRIVER + 14
+ROW_DSRA_LC_FEE = ROW_FIRST_DRIVER + 15
 
 
 def build_assumptions_constant(wb: Workbook, inputs: ProjectInputs) -> Worksheet:

@@ -60,6 +60,6 @@ def build_workbook(inputs: ProjectInputs, timeline: Timeline, output_path: str) 
     build_calc_cfads(wb, timeline, inputs)
     build_fs_quarterly(wb, timeline, inputs)
     build_fs_annual(wb, timeline, inputs)
-    build_check_control(wb)
+    build_check_control(wb, timeline)
     wb.save(output_path)
     return wb
