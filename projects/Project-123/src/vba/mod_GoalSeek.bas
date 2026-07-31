@@ -192,6 +192,16 @@ Public Sub RunAllScenarios()
         Range("ActiveScenario").Value = s
         Application.Calculate
 
+        ' Each scenario must start its own solve from a clean guess, not wherever the
+        ' previous scenario's staged values happened to land. Two very different
+        ' scenarios back-to-back (e.g. Downside straight after Upside) can otherwise
+        ' start Loop 1/Loop 2 so far from the new fixed point that the outer-pass
+        ' budget runs out before it reconverges -- and that failure then carries into
+        ' every scenario solved after it, including the final restore-and-resolve.
+        Range("StagedIDC").Value = 0
+        Range("StagedDebtSize").Value = Range("TotalCapex").Value * 0.7
+        Application.Calculate
+
         converged = SolveAllSilent()
 
         seekResult = "-"
@@ -218,9 +228,11 @@ Public Sub RunAllScenarios()
     Next s
 
     Range("ActiveScenario").Value = originalScenario
+    Range("StagedIDC").Value = 0
+    Range("StagedDebtSize").Value = Range("TotalCapex").Value * 0.7
     Application.Calculate
-    SolveAllSilent
-    RecordSolveSnapshot
+    converged = SolveAllSilent()
+    If converged Then RecordSolveSnapshot
 
     Range("BatchResults_LastRun").Value = Format(Now, "yyyy-mm-dd hh:nn:ss")
     Range("BatchResults_Mode").Value = mode
@@ -236,6 +248,14 @@ CleanUp:
                vbCritical, "Batch -- Error"
         Range("ActiveScenario").Value = originalScenario
         Application.Calculate
+    ElseIf Not converged Then
+        ThisWorkbook.Worksheets("Batch_Results").Activate
+        MsgBox "Batch complete, but the restored scenario " & originalScenario & _
+               " did NOT fully reconverge within " & Range("Cover_MaxIterations").Value & _
+               " passes." & vbCrLf & vbCrLf & _
+               "Run Solve All (Current Scenario) manually before trusting its numbers." & vbCrLf & _
+               "Batch_Results for the other scenarios are unaffected -- each one solves and " & _
+               "records its own result before moving on.", vbExclamation, "Run All 10 Scenarios"
     Else
         ThisWorkbook.Worksheets("Batch_Results").Activate
         MsgBox "Batch complete. Scenario selector restored to " & originalScenario & "." & vbCrLf & _
