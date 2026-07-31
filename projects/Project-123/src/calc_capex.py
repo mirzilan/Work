@@ -3,6 +3,7 @@ from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.workbook import Workbook
 
 import assumptions_model as model
+import calc_financing_cons as fin_cons
 from inputs import ProjectInputs
 from timeline import Timeline
 from workbook_builder import (
@@ -54,7 +55,7 @@ def build_calc_capex(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) ->
     _write_row_label(ws, ROW_TOTAL_PROJECT_COST, "Total Project Cost (Cumulative) = Cum Capex + Cum IDC")
 
     ws.cell(row=ROW_CHECK_HEADER, column=1, value="Checks").font = Font(bold=True)
-    _write_row_label(ws, ROW_CHECK_FUNDING_TIES, "Check: Cum Debt + Cum Equity = Cum Capex + Cum IDC")
+    _write_row_label(ws, ROW_CHECK_FUNDING_TIES, "Check: Cum Debt + Cum Equity = Cum Capex + Cum IDC + Initial DSRA")
     _write_row_label(ws, ROW_CHECK_TOTAL_MATCHES_INPUT, "Check: Final Cumulative Capex = Total Capex Input")
 
     ws["A4"] = "Total Capex Input ($) — linked from Assumptions_Model"
@@ -132,9 +133,13 @@ def build_calc_capex(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) ->
 
     # Checks
     check_ties = ws[f"{last_col}{ROW_CHECK_FUNDING_TIES}"]
+    # Sources now also fund the opening DSRA, so the uses side has to include it or this
+    # trips the moment the reserve is funded at close rather than out of operations.
     check_ties.value = (
         f"=IF(ROUND({last_col}{ROW_CUM_DEBT_DRAW}+{last_col}{ROW_CUM_EQUITY_DRAW}"
-        f"-{last_col}{ROW_CUM_CAPEX_DRAW}-{last_col}{ROW_CUM_IDC},2)=0,1,0)"
+        f"-{last_col}{ROW_CUM_CAPEX_DRAW}-{last_col}{ROW_CUM_IDC}"
+        f"-Calc_Financing_Cons!{fin_cons.CELL_INITIAL_DSRA}"
+        f"-Calc_Financing_Cons!{fin_cons.CELL_INITIAL_BUFFER},2)=0,1,0)"
     )
     check_ties.font = Font(color=COLOR_FORMULA)
 

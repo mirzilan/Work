@@ -158,7 +158,7 @@ def build_fs_quarterly(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) 
                  f"={col}{ROW_CFO}+{col}{ROW_CFI}+{col}{ROW_CFF}")
 
         if i == 0:
-            _formula(ws, col, ROW_OPENING_CASH, "=0")
+            _formula(ws, col, ROW_OPENING_CASH, "=Calc_Financing_Cons!$B$13")
         else:
             _formula(ws, col, ROW_OPENING_CASH, f"={prev_col}{ROW_CLOSING_CASH}")
         _formula(ws, col, ROW_CLOSING_CASH, f"={col}{ROW_OPENING_CASH}+{col}{ROW_NET_CHANGE_CASH}")

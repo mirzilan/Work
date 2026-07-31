@@ -293,7 +293,11 @@ def _write_dsra(ws: Worksheet, i: int, col: str, prev: str | None,
              f'=IF({ABS_DSRA_METHOD}="{DSRA_METHOD_CASH}",{col}{ROW_DSRA_TARGET},0)')
 
     if prev is None:
-        _formula(ws, col, ROW_DSRA_FUNDING, f"={col}{ROW_DSRA_BALANCE}")
+        # Funded at close, the opening balance is already in the account, so nothing is
+        # trapped here. Funded from operations, the whole requirement lands in quarter 1 —
+        # which is exactly the day-one equity call this switch exists to avoid.
+        _formula(ws, col, ROW_DSRA_FUNDING,
+                 f"={col}{ROW_DSRA_BALANCE}-Calc_Financing_Cons!$B$12")
     else:
         _formula(ws, col, ROW_DSRA_FUNDING, f"={col}{ROW_DSRA_BALANCE}-{prev}{ROW_DSRA_BALANCE}")
 

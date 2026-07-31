@@ -2,6 +2,9 @@ from openpyxl.styles import Font
 from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.workbook import Workbook
 
+import assumptions_model as model
+import calc_revenue_opex as rev_opex
+import cover_refs as refs
 from inputs import ProjectInputs
 from timeline import Timeline
 from workbook_builder import (
@@ -22,6 +25,9 @@ CELL_DEBT_FACILITY = "B8"
 CELL_EQUITY_COMMITMENT = "B9"
 CELL_CALCULATED_IDC = "B10"
 CELL_CONVERGENCE_GAP = "B11"
+CELL_INITIAL_DSRA = "B12"
+CELL_INITIAL_BUFFER = "B13"
+CELL_TOTAL_FUNDING_REQ = "B14"
 
 # Absolute forms — scalar cells referenced from the periodic columns must not shift on fill
 ABS_DRAWDOWN_METHOD = "$B$3"
@@ -93,11 +99,12 @@ def build_calc_financing_cons(wb: Workbook, timeline: Timeline, inputs: ProjectI
     ws[CELL_DEBT_FACILITY].font = Font(color=COLOR_FORMULA)
     ws[CELL_DEBT_FACILITY].number_format = "#,##0"
 
-    ws["A9"] = "Equity Commitment ($) = Total Project Cost - Debt Facility"
-    ws[CELL_EQUITY_COMMITMENT] = f"={CELL_TOTAL_PROJECT_COST}-{CELL_DEBT_FACILITY}"
+    ws["A9"] = "Equity Commitment ($) = Total Funding Requirement - Debt Facility"
+    ws[CELL_EQUITY_COMMITMENT] = f"={CELL_TOTAL_FUNDING_REQ}-{CELL_DEBT_FACILITY}"
     ws[CELL_EQUITY_COMMITMENT].font = Font(color=COLOR_FORMULA)
     ws[CELL_EQUITY_COMMITMENT].number_format = "#,##0"
 
+    dsra_quarters = max(1, round(inputs.reserves.dsra_target_months / 3))
     n_months = len(timeline.construction_months)
     first_col = col_letter(0)
     last_col = col_letter(n_months - 1)
@@ -111,6 +118,45 @@ def build_calc_financing_cons(wb: Workbook, timeline: Timeline, inputs: ProjectI
     ws[CELL_CONVERGENCE_GAP] = f"={CELL_CALCULATED_IDC}-{CELL_STAGED_IDC}"
     ws[CELL_CONVERGENCE_GAP].font = Font(color=COLOR_FORMULA, bold=True)
     ws[CELL_CONVERGENCE_GAP].number_format = "#,##0.00"
+
+    # Funding the opening DSRA at close, rather than trapping it out of the first
+    # quarter's operating cash.
+    #
+    # Sized off *scheduled level debt service* on the facility, not off the solved DSRA
+    # balance. The solved balance looks like the natural reference and is a circular one:
+    # the operations opening debt balance is cumulative construction draws, so making the
+    # draws depend on the solved balance closes a loop that no staged cell breaks, and
+    # Excel returns Err:522 across the whole model. Level service on the facility depends
+    # only on the staged debt size, which is already a breaker.
+    #
+    # This is also how it is done in practice: the reserve is sized at close off the
+    # base-case schedule and funded as a fixed amount. Any difference against the first
+    # quarter's actual requirement shows up as a small top-up or release in Q1.
+    ws["A12"] = "Initial DSRA Funded at Close ($) — zero when LC-backed or funded from ops"
+    ws[CELL_INITIAL_DSRA] = (
+        f'=IF(AND(Cover!{refs.ABS_DSRA_TIMING}="{refs.DSRA_TIMING_AT_CLOSE}",'
+        f'Cover!{refs.ABS_DSRA_METHOD}="{refs.DSRA_METHOD_CASH}"),'
+        f"-PMT({ABS_INTEREST_RATE}/4,Assumptions_Model!$B${model.ROW_DEBT_TENOR_YEARS}*4,"
+        f"{CELL_DEBT_FACILITY})*{dsra_quarters},0)"
+    )
+    ws[CELL_INITIAL_DSRA].font = Font(color=COLOR_LINK)
+    ws[CELL_INITIAL_DSRA].number_format = "#,##0"
+
+    # Initial working capital, funded at close like any other cost. Without it the buffer
+    # starts empty, so the first quarter has nothing to draw on and any gap between the
+    # DSRA sized at close and the first actual requirement becomes an equity call —
+    # which is what Upside was still showing.
+    ws["A13"] = "Initial Cash Buffer Funded at Close ($)"
+    ws[CELL_INITIAL_BUFFER] = (
+        f"=Cover!{refs.ABS_CASH_BUFFER_TARGET}*Calc_Revenue_Opex!{col_letter(0)}{rev_opex.ROW_OPEX}"
+    )
+    ws[CELL_INITIAL_BUFFER].font = Font(color=COLOR_LINK)
+    ws[CELL_INITIAL_BUFFER].number_format = "#,##0"
+
+    ws["A14"] = "Total Funding Requirement ($) = TPC + Initial DSRA + Initial Buffer"
+    ws[CELL_TOTAL_FUNDING_REQ] = f"={CELL_TOTAL_PROJECT_COST}+{CELL_INITIAL_DSRA}+{CELL_INITIAL_BUFFER}"
+    ws[CELL_TOTAL_FUNDING_REQ].font = Font(color=COLOR_FORMULA, bold=True)
+    ws[CELL_TOTAL_FUNDING_REQ].number_format = "#,##0"
 
     _label(ws, ROW_DATE_HEADER, "Period End Date")
     _label(ws, ROW_MONTH_INDEX, "Construction Month #")
@@ -148,7 +194,10 @@ def build_calc_financing_cons(wb: Workbook, timeline: Timeline, inputs: ProjectI
             _formula(ws, col, ROW_OPENING_BAL, f"={prev}{ROW_CLOSING_BAL}")
 
         _formula(ws, col, ROW_INTEREST_ACCRUED, f"={col}{ROW_OPENING_BAL}*{ABS_INTEREST_RATE}/12")
-        _formula(ws, col, ROW_FUNDING_REQUIREMENT, f"={col}{ROW_CAPEX_DRAW}+{col}{ROW_INTEREST_ACCRUED}")
+        funding = f"={col}{ROW_CAPEX_DRAW}+{col}{ROW_INTEREST_ACCRUED}"
+        if i == n_months - 1:
+            funding += f"+{CELL_INITIAL_DSRA}+{CELL_INITIAL_BUFFER}"
+        _formula(ws, col, ROW_FUNDING_REQUIREMENT, funding)
 
         if i == 0:
             _formula(ws, col, ROW_CUM_FUNDING_REQUIREMENT, f"={col}{ROW_FUNDING_REQUIREMENT}")
@@ -191,6 +240,9 @@ def build_calc_financing_cons(wb: Workbook, timeline: Timeline, inputs: ProjectI
     _check(ws, last_col, ROW_CHECK_FACILITY_FULLY_DRAWN,
            f"=IF(ABS({last_col}{ROW_CUM_DEBT_DRAW}-{ABS_DEBT_FACILITY})<=Cover!$B$4,1,0)")
 
+    _add_named_range(wb, "FinCons_InitialDSRA", "Calc_Financing_Cons", CELL_INITIAL_DSRA)
+    _add_named_range(wb, "FinCons_InitialBuffer", "Calc_Financing_Cons", CELL_INITIAL_BUFFER)
+    _add_named_range(wb, "FinCons_TotalFundingReq", "Calc_Financing_Cons", CELL_TOTAL_FUNDING_REQ)
     _add_named_range(wb, "StagedIDC", "Calc_Financing_Cons", CELL_STAGED_IDC)
     _add_named_range(wb, "CalculatedIDC", "Calc_Financing_Cons", CELL_CALCULATED_IDC)
     _add_named_range(wb, "IDCConvergenceGap", "Calc_Financing_Cons", CELL_CONVERGENCE_GAP)
@@ -216,13 +268,19 @@ def _debt_draw_formula(col: str, prev: str | None) -> str:
 
     debt_first = f"MIN({col}{cum},{ABS_DEBT_FACILITY})-{prev_cum_debt}"
     equity_first = f"{col}{ROW_FUNDING_REQUIREMENT}-(MIN({col}{cum},{ABS_EQUITY_COMMITMENT})-{prev_cum_equity})"
-    # Split at the facility's share of total project cost, not the raw gearing input.
-    # Under DSCR Sculpted the facility is the solved debt size, so using the input gearing
-    # here would ignore the solve entirely and peg implied gearing to the assumption.
-    # Under Fixed Gearing facility = gearing x TPC, so this reduces to the same thing.
+    # Split at the facility's share of the *total funding requirement*, not the raw
+    # gearing input and not Total Project Cost.
+    #
+    # Not the gearing input: under DSCR Sculpted the facility is the solved debt size, so
+    # using the assumption would ignore the solve and peg implied gearing to the input.
+    #
+    # Not Total Project Cost: once the requirement also covers the opening DSRA, a ratio
+    # taken over the smaller TPC scales every draw up, and the draws sum to
+    # facility x (1 + DSRA/TPC) — over-drawing the facility. Dividing by the same base the
+    # draws are applied to is what makes them sum to the facility exactly.
     pari_passu = (
         f"{col}{ROW_FUNDING_REQUIREMENT}*"
-        f"IFERROR({ABS_DEBT_FACILITY}/{ABS_TOTAL_PROJECT_COST},0)"
+        f"IFERROR({ABS_DEBT_FACILITY}/{CELL_TOTAL_FUNDING_REQ},0)"
     )
 
     return (

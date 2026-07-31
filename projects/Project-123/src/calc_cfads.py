@@ -159,7 +159,7 @@ def build_calc_cfads(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) ->
                      f"=Cover!{refs.ABS_CASH_BUFFER_TARGET}*Calc_Revenue_Opex!{col}{rev_opex.ROW_OPEX}")
 
         if prev is None:
-            _formula(ws, col, ROW_BUFFER_OPENING, "=0")
+            _formula(ws, col, ROW_BUFFER_OPENING, "=Calc_Financing_Cons!$B$13")
         else:
             _formula(ws, col, ROW_BUFFER_OPENING, f"={prev}{ROW_BUFFER_CLOSING}")
 
@@ -213,10 +213,12 @@ def build_calc_cfads(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) ->
     buffer_ok.font = Font(color=COLOR_FORMULA)
 
     # Every dollar of CAFD is either distributed, offset by an injection, or still sitting
-    # in the buffer. If those three do not tie, cash is being created or destroyed.
+    # in the buffer. If those do not tie, cash is being created or destroyed. The opening
+    # balance belongs on the left: the buffer is funded at close, not built from CAFD.
     reconciles = ws[f"{last_col}{ROW_CHECK_CASH_RECONCILES}"]
     reconciles.value = (
-        f"=IF(ROUND(SUM({first_col}{ROW_CAFD}:{last_col}{ROW_CAFD})"
+        f"=IF(ROUND({first_col}{ROW_BUFFER_OPENING}"
+        f"+SUM({first_col}{ROW_CAFD}:{last_col}{ROW_CAFD})"
         f"-SUM({first_col}{ROW_DISTRIBUTION}:{last_col}{ROW_DISTRIBUTION})"
         f"+SUM({first_col}{ROW_EQUITY_INJECTION}:{last_col}{ROW_EQUITY_INJECTION})"
         f"-{last_col}{ROW_BUFFER_CLOSING},2)=0,1,0)"

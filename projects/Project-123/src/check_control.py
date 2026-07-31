@@ -39,7 +39,7 @@ def _checks(timeline: Timeline) -> list[tuple[str, str, str, str]]:
         ("Cover", "Solve is current (assumptions unchanged since last solve)",
          f"D{cover.ROW_FRESHNESS_FLAG}", FLAG),
 
-        ("Calc_Capex", "Cum Debt + Cum Equity = Cum Capex + Cum IDC",
+        ("Calc_Capex", "Cum Debt + Cum Equity = Cum Capex + Cum IDC + Initial DSRA",
          f"{cons}{capex.ROW_CHECK_FUNDING_TIES}", FLAG),
         ("Calc_Capex", "Cumulative Capex = Total Capex Input",
          f"{cons}{capex.ROW_CHECK_TOTAL_MATCHES_INPUT}", FLAG),
