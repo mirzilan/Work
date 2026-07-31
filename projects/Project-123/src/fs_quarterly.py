@@ -2,7 +2,9 @@ from openpyxl.styles import Font
 from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.workbook import Workbook
 
+import calc_capex as capex
 import calc_cfads as cfads
+import calc_financing_cons as fin_cons
 import calc_financing_ops as fin_ops
 import calc_tax as tax
 from inputs import ProjectInputs
@@ -158,7 +160,7 @@ def build_fs_quarterly(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) 
                  f"={col}{ROW_CFO}+{col}{ROW_CFI}+{col}{ROW_CFF}")
 
         if i == 0:
-            _formula(ws, col, ROW_OPENING_CASH, "=Calc_Financing_Cons!$B$13")
+            _formula(ws, col, ROW_OPENING_CASH, f"=Calc_Financing_Cons!{fin_cons.ABS_INITIAL_BUFFER}")
         else:
             _formula(ws, col, ROW_OPENING_CASH, f"={prev_col}{ROW_CLOSING_CASH}")
         _formula(ws, col, ROW_CLOSING_CASH, f"={col}{ROW_OPENING_CASH}+{col}{ROW_NET_CHANGE_CASH}")
@@ -172,7 +174,8 @@ def build_fs_quarterly(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) 
         # CFI is already negative, so subtracting it capitalises the maintenance spend.
         if i == 0:
             _formula(ws, col, ROW_BS_PPE_NET,
-                     f"=Calc_Capex!${last_cons_col}$17-{col}{ROW_CFI}-{col}{ROW_DEPRECIATION}")
+                     f"=Calc_Capex!${last_cons_col}${capex.ROW_TOTAL_PROJECT_COST}"
+                     f"-{col}{ROW_CFI}-{col}{ROW_DEPRECIATION}")
         else:
             _formula(ws, col, ROW_BS_PPE_NET,
                      f"={prev_col}{ROW_BS_PPE_NET}-{col}{ROW_CFI}-{col}{ROW_DEPRECIATION}")
@@ -182,7 +185,8 @@ def build_fs_quarterly(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) 
         _link(ws, col, ROW_BS_DEBT, f"Calc_Financing_Ops!{col}{fin_ops.ROW_CLOSING_BAL}")
         if i == 0:
             _formula(ws, col, ROW_BS_PAID_IN_CAPITAL,
-                     f"=Calc_Capex!${last_cons_col}$13+{col}{ROW_EQUITY_INJECTION}")
+                     f"=Calc_Capex!${last_cons_col}${capex.ROW_CUM_EQUITY_DRAW}"
+                     f"+{col}{ROW_EQUITY_INJECTION}")
         else:
             _formula(ws, col, ROW_BS_PAID_IN_CAPITAL,
                      f"={prev_col}{ROW_BS_PAID_IN_CAPITAL}+{col}{ROW_EQUITY_INJECTION}")

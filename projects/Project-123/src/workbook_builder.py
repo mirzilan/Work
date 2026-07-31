@@ -86,6 +86,6 @@ def build_workbook(inputs: ProjectInputs, timeline: Timeline, output_path: str,
     build_valuation_selldown(wb, timeline)
     build_batch_results(wb)
     build_check_control(wb, timeline)
-    build_dashboard(wb)  # index 0: opens here — must be built last, once everything it links to exists
+    build_dashboard(wb, timeline)  # index 0: opens here — must be built last, once everything it links to exists
     wb.save(output_path)
     return wb

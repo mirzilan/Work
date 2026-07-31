@@ -59,13 +59,13 @@ def build_calc_capex(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) ->
     _write_row_label(ws, ROW_CHECK_TOTAL_MATCHES_INPUT, "Check: Final Cumulative Capex = Total Capex Input")
 
     ws["A4"] = "Total Capex Input ($) — linked from Assumptions_Model"
-    ws["B4"] = "=Assumptions_Model!$B$3"
+    ws["B4"] = f"=Assumptions_Model!$B${model.ROW_TOTAL_CAPEX}"
     ws["B4"].font = Font(color=COLOR_LINK)
     ws["B4"].number_format = "#,##0"
     wb.defined_names.add(_named_range("TotalCapex", "Calc_Capex", "B4"))
 
     ws["A9"] = "Debt Funding % — linked from Assumptions_Model (Stage 1a: fixed ratio; Stage 1b: Loop 1 draw sequencing)"
-    ws["B9"] = "=Assumptions_Model!$B$4"
+    ws["B9"] = f"=Assumptions_Model!$B${model.ROW_DEBT_PCT}"
     ws["B9"].font = Font(color=COLOR_LINK)
     ws["B9"].number_format = "0.00%"
 

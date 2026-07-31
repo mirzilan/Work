@@ -3,6 +3,7 @@ from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.workbook import Workbook
 
 import assumptions_model as model
+import calc_capex as capex
 import calc_financing_ops as fin_ops
 import cover
 from inputs import ProjectInputs
@@ -120,7 +121,7 @@ def build_calc_tax(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) -> W
     # Depreciable base is Total Project Cost (capex + capitalised IDC), not capex alone —
     # PP&E on the balance sheet opens at TPC, so depreciating capex only would strand the
     # IDC portion undepreciated for the life of the asset.
-    tpc_ref = f"Calc_Capex!${last_cons_col}$17"
+    tpc_ref = f"Calc_Capex!${last_cons_col}${capex.ROW_TOTAL_PROJECT_COST}"
     quarterly_depr_expr = f"{tpc_ref}/({ABS_USEFUL_LIFE}*4)"
 
     useful_life_quarters = inputs.tax.useful_life_years * 4

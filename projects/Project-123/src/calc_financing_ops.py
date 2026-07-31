@@ -3,6 +3,7 @@ from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.workbook import Workbook
 
 import assumptions_model as model
+import calc_capex as capex
 import cover_refs as refs
 from inputs import ProjectInputs
 from timeline import Timeline
@@ -29,10 +30,13 @@ CELL_DSRA_METHOD = "B13"
 
 ABS_INTEREST_RATE = "$B$4"
 ABS_TARGET_DSCR = "$B$5"
+ABS_MAX_GEARING = "$B$6"
+ABS_STAGED_DEBT_SIZE = "$B$7"
 ABS_TENOR_YEARS = "$B$9"
 ABS_SIZING_MODE = "$B$3"
 ABS_DSRA_LC_FEE_RATE = "$B$12"
 ABS_DSRA_METHOD = "$B$13"
+ABS_IMPLIED_GEARING = "$B$11"
 
 ROW_DATE_HEADER = 15
 ROW_QUARTER_INDEX = 16
@@ -124,7 +128,7 @@ def build_calc_financing_ops(wb: Workbook, timeline: Timeline, inputs: ProjectIn
     ws["A8"] = "Sculpted Debt Capacity ($) = PV of sculpting basis, capped at Max Gearing"
     ws[CELL_SCULPTED_CAPACITY] = (
         f"=MIN(NPV({ABS_INTEREST_RATE}/4,{first_col}{ROW_SCULPT_BASIS}:{tenor_end_col}{ROW_SCULPT_BASIS}),"
-        f"$B$6*Calc_Capex!${last_cons_col}$17)"
+        f"{ABS_MAX_GEARING}*Calc_Capex!${last_cons_col}${capex.ROW_TOTAL_PROJECT_COST})"
     )
     ws[CELL_SCULPTED_CAPACITY].font = Font(color=COLOR_FORMULA, bold=True)
     ws[CELL_SCULPTED_CAPACITY].number_format = "#,##0"
@@ -140,7 +144,7 @@ def build_calc_financing_ops(wb: Workbook, timeline: Timeline, inputs: ProjectIn
 
     ws["A11"] = "Implied Gearing (solved) = Opening Debt / Total Project Cost"
     ws[CELL_IMPLIED_GEARING] = (
-        f"=IFERROR({first_col}{ROW_OPENING_BAL}/Calc_Capex!${last_cons_col}$17,0)"
+        f"=IFERROR({first_col}{ROW_OPENING_BAL}/Calc_Capex!${last_cons_col}${capex.ROW_TOTAL_PROJECT_COST},0)"
     )
     ws[CELL_IMPLIED_GEARING].font = Font(color=COLOR_FORMULA, bold=True)
     ws[CELL_IMPLIED_GEARING].number_format = "0.00%"
@@ -251,7 +255,7 @@ def build_calc_financing_ops(wb: Workbook, timeline: Timeline, inputs: ProjectIn
     # carry more debt than Max Gearing permits.
     _check(ws, last_col, ROW_CHECK_CAPPED_BY_MAX_GEARING,
            f"=IF(NPV({ABS_INTEREST_RATE}/4,{first_col}{ROW_SCULPT_BASIS}:{tenor_end_col}{ROW_SCULPT_BASIS})"
-           f">$B$6*Calc_Capex!${last_cons_col}$17,1,0)")
+           f">{ABS_MAX_GEARING}*Calc_Capex!${last_cons_col}${capex.ROW_TOTAL_PROJECT_COST},1,0)")
 
     # PLCR discounts CFADS over a strictly longer horizon than LLCR off the same balance,
     # so it can never be the smaller of the two — if it is, one of the ranges is wrong.

@@ -5,7 +5,13 @@ import openpyxl.utils
 
 import fs_annual as fsa
 from timeline import Timeline
-from workbook_builder import FIRST_DATA_COL, COLOR_FORMULA, COLOR_LINK, TAB_COLOR_OUTPUT
+from workbook_builder import (
+    FIRST_DATA_COL,
+    COLOR_FORMULA,
+    COLOR_INPUT,
+    COLOR_LINK,
+    TAB_COLOR_OUTPUT,
+)
 
 # Standalone, read-only downstream of FS_Annual — no FCFF/FCFE is rebuilt here, only
 # read via FS_Annual's own whole-of-life XIRR helper row (built once on Calc_CFADS).
@@ -43,9 +49,16 @@ def build_valuation_selldown(wb: Workbook, timeline: Timeline) -> Worksheet:
                 "FS_Annual (Stage 1d)")
     ws["A1"].font = Font(bold=True, size=12)
 
-    ws.cell(row=ROW_TARGET_RATE, column=1, value="Valuation Discount Rate (Target PIRR)")
-    rate_cell = ws.cell(row=ROW_TARGET_RATE, column=2, value="=GoalSeek_TargetPIRR")
-    rate_cell.font = Font(color=COLOR_LINK)
+    # Independent input, not a link to GoalSeek_TargetPIRR: that cell is *your* return
+    # target, which goal-seek can move the model's own revenue to hit. Discounting the
+    # sell-down at the same cell you're solving toward makes the buyer's implied PIRR
+    # come back at ~target by construction, which defeats the point of the scan. Seeded
+    # at Cover's own Target PIRR default (8%) so day one it reads sensibly, but this is a
+    # deal-specific assumption (buyer's required return) that should be set independently.
+    ws.cell(row=ROW_TARGET_RATE, column=1,
+            value="Exit Discount Rate (buyer/seller required return)")
+    rate_cell = ws.cell(row=ROW_TARGET_RATE, column=2, value=0.08)
+    rate_cell.font = Font(color=COLOR_INPUT)
     rate_cell.number_format = "0.00%"
 
     for row, label in (

@@ -169,7 +169,9 @@ silently severing every scenario from the selector.
 | **1c — Scale out** | 10 scenarios + escalation library (#14 ✅) → DSRA/MRA + LC option + LLCR/PLCR + multi-vintage maintenance capex (#15 ✅) → control panel + goal-seek (#16 ✅) | ✅ **complete** |
 | **1d — Sell-down** | `Valuation_SellDown` + `Dashboard` (#22) | ✅ **complete** |
 
-**Dummy test case (Stage 1a validation):** $100M project, 24mo construction, 20yr ops, $15M/yr flat revenue, 70/30 debt/equity, 6% interest, 25% tax. Verified: BS balances all 80 quarters, model winds to exactly $0 at end of life, EIRR (7.16%) > PIRR (6.09%) correctly reflects leverage, EIRR moves monotonically with revenue.
+**Dummy test case (Stage 1a validation):** $100M project, 24mo construction, 20yr ops, $15M/yr flat revenue, 70/30 debt/equity, 6% interest, 25% tax. Verified: BS balances all 80 quarters, model winds to exactly $0 at end of life, EIRR moves monotonically with revenue (verified 0.5x-2.0x revenue band, `verify_goalseek.py`).
+
+⚠️ **EIRR (5.97%) < PIRR (6.34%) at these base assumptions** — re-verified after the reserves/buffer/lock-up work (Stage 1c-1e). This is *not* a wiring bug: at 72% gearing and 6% interest, the project barely clears its own cost of debt on an unlevered basis (PIRR only 34bp above the rate), and the DSRA/MRA/lock-up machinery back-loads early distributions, so leverage is mildly value-*destructive* at this specific revenue level. The crossover to EIRR > PIRR (leverage accretive, the "normal" IC case) happens organically around ~16-17M revenue — confirmed monotonic and consistent with theory, not a defect. Earlier revisions of this document quoted EIRR 7.16% / PIRR 6.09% from before the reserve/buffer work; those numbers are superseded. Treat "EIRR vs PIRR direction" as a scenario-dependent output to sanity-check on every material assumption change, not a fixed invariant to assert as a check.
 
 ---
 

@@ -36,6 +36,8 @@ STAGED_DEBT = ("Calc_Financing_Ops", "B7")
 DEBT_CAPACITY = ("Calc_Financing_Ops", "B8")
 DEBT_GAP = ("Calc_Financing_Ops", "B10")
 
+TOTAL_CAPEX = ("Calc_Capex", "B4")
+
 
 def _start_soffice():
     proc = subprocess.Popen(
@@ -81,6 +83,17 @@ def get_str(doc, sheet, ref):
 
 def set_value(doc, addr, value):
     _cell(doc, addr[0], addr[1]).setValue(value)
+
+
+def reset_staged(doc):
+    """Mirrors mod_GoalSeek's per-scenario reset in RunAllScenarios: a fresh guess, not
+    whatever the previous scenario's solve happened to leave behind. Without this, main()
+    would mirror the pre-fix VBA bug (staged values carried across scenario switches)
+    rather than the shipped fix."""
+    doc.calculateAll()
+    set_value(doc, STAGED_IDC, 0)
+    set_value(doc, STAGED_DEBT, get(doc, TOTAL_CAPEX) * 0.7)
+    doc.calculateAll()
 
 
 def solve(doc, passes=40, tol=1.0):
@@ -176,9 +189,11 @@ def main():
 
         for scenario, name in ((1, "Base"), (2, "Upside"), (3, "Downside")):
             set_value(doc, ("Cover", refs.CELL_ACTIVE_SCENARIO), scenario)
+            reset_staged(doc)
             all_failures += [(name, *f) for f in report(doc, f"SCENARIO {scenario} — {name} (DSRA cash-funded)")]
 
         set_value(doc, ("Cover", refs.CELL_ACTIVE_SCENARIO), 1)
+        reset_staged(doc)
         _cell(doc, "Cover", refs.CELL_DSRA_METHOD).setString(refs.DSRA_METHODS[1])
         all_failures += [("Base/LC", *f) for f in report(doc, "SCENARIO 1 — Base, DSRA LC-BACKED")]
         _cell(doc, "Cover", refs.CELL_DSRA_METHOD).setString(refs.DSRA_METHOD_CASH)

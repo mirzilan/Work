@@ -2,7 +2,9 @@ from openpyxl.styles import Font
 from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.workbook import Workbook
 
+import calc_capex as capex
 import calc_cfads as cfads
+import calc_financing_cons as fin_cons
 import fs_quarterly as fsq
 from inputs import ProjectInputs
 from timeline import Timeline
@@ -151,12 +153,12 @@ def _build_construction_section(ws: Worksheet, timeline: Timeline) -> None:
         ws[f"{col}{ROW_CONS_YEAR_LABEL}"] = f"C-Yr {year_num + 1}"
 
         for row, (sheet, src_row, is_sum) in {
-            ROW_CONS_CAPEX: ("Calc_Capex", 6, True),
-            ROW_CONS_IDC: ("Calc_Financing_Cons", 18, True),
-            ROW_CONS_DEBT_DRAWN: ("Calc_Financing_Cons", 21, True),
-            ROW_CONS_EQUITY_DRAWN: ("Calc_Financing_Cons", 22, True),
-            ROW_CONS_CUM_TPC: ("Calc_Capex", 17, False),
-            ROW_CONS_CLOSING_DEBT: ("Calc_Financing_Cons", 25, False),
+            ROW_CONS_CAPEX: ("Calc_Capex", capex.ROW_CAPEX_DRAW, True),
+            ROW_CONS_IDC: ("Calc_Financing_Cons", fin_cons.ROW_INTEREST_ACCRUED, True),
+            ROW_CONS_DEBT_DRAWN: ("Calc_Financing_Cons", fin_cons.ROW_DEBT_DRAW, True),
+            ROW_CONS_EQUITY_DRAWN: ("Calc_Financing_Cons", fin_cons.ROW_EQUITY_DRAW, True),
+            ROW_CONS_CUM_TPC: ("Calc_Capex", capex.ROW_TOTAL_PROJECT_COST, False),
+            ROW_CONS_CLOSING_DEBT: ("Calc_Financing_Cons", fin_cons.ROW_CLOSING_BAL, False),
         }.items():
             cell = ws[f"{col}{row}"]
             if is_sum:
@@ -180,17 +182,17 @@ def _build_xirr_block(ws: Worksheet, wb: Workbook, timeline: Timeline) -> None:
         capex_col_in_source = openpyxl.utils.get_column_letter(3 + i)  # matches Calc_Capex's own column layout
 
         date_cell = ws[f"{col}{ROW_XIRR_DATE}"]
-        date_cell.value = f"=Calc_Capex!{capex_col_in_source}2"
+        date_cell.value = f"=Calc_Capex!{capex_col_in_source}{capex.ROW_DATE_HEADER}"
         date_cell.font = Font(color=COLOR_LINK)
         date_cell.number_format = "mmm-yy"
 
         proj_cf_cell = ws[f"{col}{ROW_XIRR_PROJECT_CF}"]
-        proj_cf_cell.value = f"=-Calc_Capex!{capex_col_in_source}6"  # ROW_CAPEX_DRAW
+        proj_cf_cell.value = f"=-Calc_Capex!{capex_col_in_source}{capex.ROW_CAPEX_DRAW}"
         proj_cf_cell.font = Font(color=COLOR_LINK)
         proj_cf_cell.number_format = "#,##0"
 
         equity_cf_cell = ws[f"{col}{ROW_XIRR_EQUITY_CF}"]
-        equity_cf_cell.value = f"=-Calc_Capex!{capex_col_in_source}11"  # ROW_EQUITY_DRAW
+        equity_cf_cell.value = f"=-Calc_Capex!{capex_col_in_source}{capex.ROW_EQUITY_DRAW}"
         equity_cf_cell.font = Font(color=COLOR_LINK)
         equity_cf_cell.number_format = "#,##0"
 
@@ -200,7 +202,7 @@ def _build_xirr_block(ws: Worksheet, wb: Workbook, timeline: Timeline) -> None:
         ops_col_in_source = openpyxl.utils.get_column_letter(3 + i)  # matches Calc_CFADS's own column layout
 
         date_cell = ws[f"{col}{ROW_XIRR_DATE}"]
-        date_cell.value = f"=Calc_CFADS!{ops_col_in_source}2"
+        date_cell.value = f"=Calc_CFADS!{ops_col_in_source}{cfads.ROW_DATE_HEADER}"
         date_cell.font = Font(color=COLOR_LINK)
         date_cell.number_format = "mmm-yy"
 

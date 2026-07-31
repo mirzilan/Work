@@ -1,3 +1,4 @@
+from openpyxl.chart import BarChart, LineChart, Reference
 from openpyxl.styles import Font, PatternFill
 from openpyxl.formatting.rule import FormulaRule
 from openpyxl.worksheet.worksheet import Worksheet
@@ -5,7 +6,12 @@ from openpyxl.workbook import Workbook
 
 import assumptions_constant as const
 import batch_results as batch
-from workbook_builder import COLOR_LINK, TAB_COLOR_OUTPUT
+import calc_capex as capex
+import calc_financing_cons as fin_cons
+import check_control
+import fs_annual as fsa
+from timeline import Timeline
+from workbook_builder import COLOR_LINK, TAB_COLOR_OUTPUT, col_letter
 
 # Sheet 1 — read-only, links only. Nothing here is computed; it just surfaces what
 # Check_Control, Cover and Batch_Results already hold, laid out for a one-glance read.
@@ -27,12 +33,23 @@ ROW_SCENARIO_HEADER = 18
 ROW_SCENARIO_TABLE_HEADER = 19
 ROW_FIRST_SCENARIO = 20
 
+ROW_SOURCES_USES_HEADER = 32
+ROW_SU_TABLE_HEADER = 33
+ROW_SU_CAPEX = 34
+ROW_SU_IDC = 35
+ROW_SU_DSRA = 36
+ROW_SU_BUFFER = 37
+ROW_SU_TOTAL = 38
+
+ROW_CHART_HEADER = 41
+ROW_CHART_ANCHOR = 42  # charts float below this row; ~15 rows tall each
+
 FILL_GREEN = PatternFill(start_color="FFC6EFCE", end_color="FFC6EFCE", fill_type="solid")
 FILL_RED = PatternFill(start_color="FFFFC7CE", end_color="FFFFC7CE", fill_type="solid")
 FILL_AMBER = PatternFill(start_color="FFFFEB9C", end_color="FFFFEB9C", fill_type="solid")
 
 
-def build_dashboard(wb: Workbook) -> Worksheet:
+def build_dashboard(wb: Workbook, timeline: Timeline) -> Worksheet:
     ws = wb.create_sheet("Dashboard", 0)  # index 0: opens here
     ws.sheet_properties.tabColor = TAB_COLOR_OUTPUT
 
@@ -41,10 +58,10 @@ def build_dashboard(wb: Workbook) -> Worksheet:
 
     ws.cell(row=ROW_STATUS_HEADER, column=1, value="Status").font = Font(bold=True)
 
-    _linked(ws, ROW_MODEL_STATUS, "Model Status", "=Check_Control!B3")
+    _linked(ws, ROW_MODEL_STATUS, "Model Status", f"=Check_Control!B{check_control.ROW_MASTER_FLAG}")
     _linked(ws, ROW_SOLVE_FRESHNESS, "Solve Freshness", "=SolveStatus")
     _linked(ws, ROW_ACTIVE_SCENARIO, "Active Scenario",
-            "=ActiveScenario&\" - \"&Assumptions_Constant!$B$4")
+            f"=ActiveScenario&\" - \"&Assumptions_Constant!$B${const.ROW_SCENARIO_NAME}")
 
     ws.conditional_formatting.add(
         f"B{ROW_MODEL_STATUS}",
@@ -84,11 +101,101 @@ def build_dashboard(wb: Workbook) -> Worksheet:
         )
 
     _build_scenario_comparison(ws)
+    _build_sources_uses(ws, timeline)
+    _build_charts(ws, timeline)
 
     ws.column_dimensions["A"].width = 24
     ws.column_dimensions["B"].width = 16
 
     return ws
+
+
+def _build_sources_uses(ws: Worksheet, timeline: Timeline) -> None:
+    """Formula-linked, not chart-derived, per the blueprint spec: every cell here reads
+    an existing Calc_Capex/Calc_Financing_Cons cell, never recomputes it. Sources and
+    Uses are laid out side by side so the tie-out (Check_Financing_Cons's own
+    "Cum Debt + Cum Equity = Cum Funding Requirement" check) is visually obvious."""
+    last_cons_col = col_letter(len(timeline.construction_months) - 1)
+
+    ws.cell(row=ROW_SOURCES_USES_HEADER, column=1, value="Sources & Uses").font = Font(bold=True)
+
+    for col, header in ((1, "Uses"), (4, "Sources")):
+        cell = ws.cell(row=ROW_SU_TABLE_HEADER, column=col, value=header)
+        cell.font = Font(bold=True)
+
+    uses = (
+        (ROW_SU_CAPEX, "Total Capex", f"=Calc_Capex!${last_cons_col}${capex.ROW_CUM_CAPEX_DRAW}"),
+        (ROW_SU_IDC, "IDC Capitalised", f"=Calc_Capex!${last_cons_col}${capex.ROW_CUM_IDC}"),
+        (ROW_SU_DSRA, "Initial DSRA Funded at Close", f"=Calc_Financing_Cons!{fin_cons.CELL_INITIAL_DSRA}"),
+        (ROW_SU_BUFFER, "Initial Cash Buffer Funded at Close",
+         f"=Calc_Financing_Cons!{fin_cons.CELL_INITIAL_BUFFER}"),
+    )
+    for row, label, formula in uses:
+        ws.cell(row=row, column=1, value=label)
+        cell = ws.cell(row=row, column=2, value=formula)
+        cell.font = Font(color=COLOR_LINK)
+        cell.number_format = "#,##0"
+
+    ws.cell(row=ROW_SU_TOTAL, column=1, value="Total Uses").font = Font(bold=True)
+    total_uses = ws.cell(row=ROW_SU_TOTAL, column=2,
+                         value=f"=Calc_Financing_Cons!{fin_cons.CELL_TOTAL_FUNDING_REQ}")
+    total_uses.font = Font(color=COLOR_LINK, bold=True)
+    total_uses.number_format = "#,##0"
+
+    sources = (
+        (ROW_SU_CAPEX, "Debt Facility", f"=Calc_Financing_Cons!{fin_cons.CELL_DEBT_FACILITY}"),
+        (ROW_SU_IDC, "Equity Commitment", f"=Calc_Financing_Cons!{fin_cons.CELL_EQUITY_COMMITMENT}"),
+    )
+    for row, label, formula in sources:
+        ws.cell(row=row, column=4, value=label)
+        cell = ws.cell(row=row, column=5, value=formula)
+        cell.font = Font(color=COLOR_LINK)
+        cell.number_format = "#,##0"
+
+    ws.cell(row=ROW_SU_TOTAL, column=4, value="Total Sources").font = Font(bold=True)
+    total_sources = ws.cell(row=ROW_SU_TOTAL, column=5, value=f"=E{ROW_SU_CAPEX}+E{ROW_SU_IDC}")
+    total_sources.font = Font(color=COLOR_LINK, bold=True)
+    total_sources.number_format = "#,##0"
+
+    ws.column_dimensions["D"].width = 24
+    ws.column_dimensions["E"].width = 16
+
+
+def _build_charts(ws: Worksheet, timeline: Timeline) -> None:
+    """Native, formula-driven charts (openpyxl BarChart/LineChart) reading live cell
+    ranges -- not images, not chart-derived summary numbers duplicated elsewhere."""
+    ws.cell(row=ROW_CHART_HEADER, column=1, value="Charts").font = Font(bold=True)
+
+    returns_chart = BarChart()
+    returns_chart.title = "EIRR / PIRR by Scenario"
+    returns_chart.y_axis.numFmt = "0%"
+    returns_chart.height = 8
+    returns_chart.width = 16
+    last_scenario_row = ROW_FIRST_SCENARIO + const.N_SCENARIOS - 1
+    data = Reference(ws, min_col=3, max_col=4, min_row=ROW_SCENARIO_TABLE_HEADER,
+                     max_row=last_scenario_row)
+    cats = Reference(ws, min_col=2, min_row=ROW_FIRST_SCENARIO, max_row=last_scenario_row)
+    returns_chart.add_data(data, titles_from_data=True)
+    returns_chart.set_categories(cats)
+    ws.add_chart(returns_chart, f"A{ROW_CHART_ANCHOR}")
+
+    profile_chart = LineChart()
+    profile_chart.title = "Annual Revenue / EBITDA / Net Income (Operating Years)"
+    profile_chart.y_axis.numFmt = "#,##0"
+    profile_chart.height = 8
+    profile_chart.width = 16
+    fsa_ws = ws.parent["FS_Annual"]
+    # FS_Annual reports operating years only (construction is a separate annual block) --
+    # same bucket count fs_annual.py itself used to lay the columns out.
+    n_annual_years = len(fsa._operations_only_annual_buckets(timeline))
+    last_col_idx = 3 + n_annual_years - 1  # FIRST_DATA_COL (col C = 3) through the final year
+    cash_data = Reference(fsa_ws, min_col=1, max_col=last_col_idx,
+                          min_row=fsa.ROW_REVENUE, max_row=fsa.ROW_NET_INCOME)
+    cash_cats = Reference(fsa_ws, min_col=3, max_col=last_col_idx,
+                          min_row=fsa.ROW_YEAR_LABEL, max_row=fsa.ROW_YEAR_LABEL)
+    profile_chart.add_data(cash_data, titles_from_data=True, from_rows=True)
+    profile_chart.set_categories(cash_cats)
+    ws.add_chart(profile_chart, f"J{ROW_CHART_ANCHOR}")
 
 
 def _build_scenario_comparison(ws: Worksheet) -> None:

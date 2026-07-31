@@ -3,6 +3,7 @@ from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.workbook import Workbook
 
+import assumptions_constant as const
 import assumptions_model as model
 from workbook_builder import COLOR_INPUT, COLOR_LINK, TAB_COLOR_INPUT
 
@@ -126,10 +127,14 @@ def build_cover(wb: Workbook, n_construction_months: int = 24,
     ws[CELL_DEBT_SIZING_TOLERANCE] = 100.0
     ws[CELL_DEBT_SIZING_TOLERANCE].font = Font(color=COLOR_INPUT)
 
+    # Local import: Check_Control aggregates via `import cover`, so importing it back at
+    # module level here would close the loop. The row constant is only needed at build time.
+    import check_control
+
     ws["A8"] = "Model Status"
     ws["A8"].font = Font(bold=True)
     status_cell = ws[CELL_MASTER_CHECK_LINK]
-    status_cell.value = "=Check_Control!B3"
+    status_cell.value = f"=Check_Control!B{check_control.ROW_MASTER_FLAG}"
     status_cell.font = Font(bold=True, size=14)
 
     ws["A11"] = "Buttons (Stage 1b+): Solve Construction IDC | Solve Debt Sculpting | Goal Seek -> EIRR | Goal Seek -> PIRR"
@@ -200,7 +205,7 @@ def build_cover(wb: Workbook, n_construction_months: int = 24,
     ws.add_data_validation(scenario_validation)
     scenario_validation.add(scenario_cell)
 
-    ws["C20"] = "=Assumptions_Constant!$B$4"
+    ws["C20"] = f"=Assumptions_Constant!$B${const.ROW_SCENARIO_NAME}"
     ws["C20"].font = Font(color=COLOR_LINK, italic=True)
 
     ws["A21"] = (
@@ -280,7 +285,12 @@ def _build_goalseek_block(ws: Worksheet, wb: Workbook, tenor_end_col: str,
     """Targets and search bounds for the goal-seek macros, plus the live readings the
     macros write their results against. Bounds are multiples of the active scenario's own
     revenue rather than absolute dollars, so one setting works across all 10 scenarios."""
+    import calc_capex as capex
+    import calc_financing_cons as fin_cons
     import calc_financing_ops as fin_ops
+    # Local import: FS_Annual pulls in calc_tax, which imports cover -- a module-level
+    # import here would close that loop.
+    import fs_annual as fsa
     from workbook_builder import col_letter
 
     first_q = col_letter(0)
@@ -292,8 +302,10 @@ def _build_goalseek_block(ws: Worksheet, wb: Workbook, tenor_end_col: str,
     _input(ws, ROW_TARGET_EIRR, "Target EIRR", 0.12, "0.00%")
     _input(ws, ROW_TARGET_PIRR, "Target PIRR", 0.08, "0.00%")
 
-    _linked(ws, ROW_LIVE_EIRR, "Current EIRR (live)", "=FS_Annual!$A$21", "0.00%", bold=True)
-    _linked(ws, ROW_LIVE_PIRR, "Current PIRR (live)", "=FS_Annual!$A$19", "0.00%", bold=True)
+    _linked(ws, ROW_LIVE_EIRR, "Current EIRR (live)",
+            f"=FS_Annual!$A${fsa.ROW_EIRR_VALUE}", "0.00%", bold=True)
+    _linked(ws, ROW_LIVE_PIRR, "Current PIRR (live)",
+            f"=FS_Annual!$A${fsa.ROW_PIRR_VALUE}", "0.00%", bold=True)
 
     _computed(ws, ROW_EIRR_VS_TARGET, "EIRR less Target",
               f"=B{ROW_LIVE_EIRR}-B{ROW_TARGET_EIRR}", "0.00%")
@@ -334,10 +346,12 @@ def _build_goalseek_block(ws: Worksheet, wb: Workbook, tenor_end_col: str,
 
     last_cons_col = col_letter(n_construction_months - 1)
     _linked(ws, ROW_LIVE_TPC, "Total Project Cost ($)",
-            f"=Calc_Capex!${last_cons_col}$17", "#,##0")
+            f"=Calc_Capex!${last_cons_col}${capex.ROW_TOTAL_PROJECT_COST}", "#,##0")
 
-    _linked(ws, ROW_LIVE_DEBT_FACILITY, "Debt Facility ($)", "=Calc_Financing_Cons!$B$8", "#,##0")
-    _linked(ws, ROW_LIVE_GEARING, "Implied Gearing", "=Calc_Financing_Ops!$B$11", "0.00%")
+    _linked(ws, ROW_LIVE_DEBT_FACILITY, "Debt Facility ($)",
+            f"=Calc_Financing_Cons!{fin_cons.ABS_DEBT_FACILITY}", "#,##0")
+    _linked(ws, ROW_LIVE_GEARING, "Implied Gearing",
+            f"=Calc_Financing_Ops!{fin_ops.ABS_IMPLIED_GEARING}", "0.00%")
     _linked(ws, ROW_LIVE_MIN_DSCR, "Min DSCR over tenor",
             f"=MIN(Calc_Financing_Ops!{first_q}{fin_ops.ROW_DSCR}:"
             f"{tenor_end_col}{fin_ops.ROW_DSCR})", "0.0000")

@@ -3,6 +3,7 @@ from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.workbook import Workbook
 
 import assumptions_model as model
+import calc_financing_ops as fin_ops
 import calc_revenue_opex as rev_opex
 import cover_refs as refs
 from inputs import ProjectInputs
@@ -36,6 +37,8 @@ ABS_GEARING = "$B$5"
 ABS_TOTAL_PROJECT_COST = "$B$7"
 ABS_DEBT_FACILITY = "$B$8"
 ABS_EQUITY_COMMITMENT = "$B$9"
+ABS_INITIAL_DSRA = "$B$12"
+ABS_INITIAL_BUFFER = "$B$13"
 
 ROW_DATE_HEADER = 13
 ROW_MONTH_INDEX = 14
@@ -94,7 +97,8 @@ def build_calc_financing_cons(wb: Workbook, timeline: Timeline, inputs: ProjectI
     # under Fixed Gearing it is simply the gearing applied to Total Project Cost.
     ws["A8"] = "Debt Facility ($) — per Cover Debt Sizing Mode"
     ws[CELL_DEBT_FACILITY] = (
-        f'=IF(Cover!$B$17="DSCR Sculpted",Calc_Financing_Ops!$B$7,{ABS_GEARING}*$B$7)'
+        f'=IF(Cover!{refs.ABS_DEBT_SIZING_MODE}="{refs.SCULPTED}",'
+        f"Calc_Financing_Ops!{fin_ops.ABS_STAGED_DEBT_SIZE},{ABS_GEARING}*{ABS_TOTAL_PROJECT_COST})"
     )
     ws[CELL_DEBT_FACILITY].font = Font(color=COLOR_FORMULA)
     ws[CELL_DEBT_FACILITY].number_format = "#,##0"
