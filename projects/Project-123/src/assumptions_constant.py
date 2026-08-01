@@ -15,9 +15,9 @@ ROW_SCENARIO_HEADER = 3
 ROW_SCENARIO_NAME = 4
 ROW_FIRST_DRIVER = 6
 
-ROW_CHECK_HEADER = 23
-ROW_CHECK_ACTIVE_RESOLVES = 24
-ROW_CHECK_ALL_POPULATED = 25
+ROW_CHECK_HEADER = 25
+ROW_CHECK_ACTIVE_RESOLVES = 26
+ROW_CHECK_ALL_POPULATED = 27
 
 SCENARIO_NAMES = [
     "Base", "Upside", "Downside",
@@ -44,6 +44,8 @@ DRIVERS = [
     ("Escalation Factor 4 (Annual %)", "0.00%", 0.030, 0.025, 0.045),
     ("Routine Maint Capex (% of Revenue)", "0.00%", 0.015, 0.012, 0.020),
     ("DSRA LC Fee (% p.a. on requirement)", "0.00%", 0.0125, 0.0100, 0.0175),
+    ("Trade Receivable Days", "0", 30, 20, 45),
+    ("Trade Payable Days", "0", 45, 60, 30),
 ]
 
 # Row offsets so other modules can reference a driver without hardcoding row numbers.
@@ -60,6 +62,8 @@ ROW_MAX_GEARING = ROW_FIRST_DRIVER + 9
 ROW_ESC_FACTOR_1 = ROW_FIRST_DRIVER + 10
 ROW_ROUTINE_MAINT_PCT = ROW_FIRST_DRIVER + 14
 ROW_DSRA_LC_FEE = ROW_FIRST_DRIVER + 15
+ROW_RECEIVABLE_DAYS = ROW_FIRST_DRIVER + 16
+ROW_PAYABLE_DAYS = ROW_FIRST_DRIVER + 17
 
 
 def build_assumptions_constant(wb: Workbook, inputs: ProjectInputs) -> Worksheet:

@@ -10,6 +10,7 @@ import calc_cfads as cfads
 import calc_financing_cons as fin_cons
 import calc_financing_ops as fin_ops
 import calc_revenue_opex as rev_opex
+import calc_working_capital as wc
 import calc_tax as tax
 import cover
 import fs_annual as fsa
@@ -82,6 +83,13 @@ def _checks(timeline: Timeline) -> list[tuple[str, str, str, str]]:
         ("Calc_Revenue_Opex", "Total maintenance capex >= 0 every quarter",
          f"{ops}{rev_opex.ROW_CHECK_MAINT_NONNEG}", FLAG),
 
+        ("Calc_Working_Capital", "Receivables balance never negative",
+         f"{ops}{wc.ROW_CHECK_AR_NONNEG}", FLAG),
+        ("Calc_Working_Capital", "Payables balance never negative",
+         f"{ops}{wc.ROW_CHECK_AP_NONNEG}", FLAG),
+        ("Calc_Working_Capital", "Cumulative Change in NWC = 0 by the final quarter",
+         f"{ops}{wc.ROW_CHECK_NWC_UNWINDS}", FLAG),
+
         ("Calc_Tax", "Accumulated Base Depreciation <= Total Project Cost",
          f"{ops}{tax.ROW_CHECK_ACCUM_DEPR}", FLAG),
         ("Calc_Tax", "Accumulated Maint Depreciation <= Cumulative Maint Capex",
@@ -127,7 +135,7 @@ def _checks(timeline: Timeline) -> list[tuple[str, str, str, str]]:
         ("FS_Quarterly", "Direct CFO = Indirect CFO every quarter",
          f"{ops}{fsq.ROW_CHECK_DIRECT_TIES_INDIRECT_COUNT}", COUNT),
         ("FS_Quarterly", "FCFF (CF Method) = FCFF (CFADS Method) every quarter",
-         f"{ops}{fsq.ROW_CHECK_FCFF_METHODS_TIE_COUNT}", COUNT),
+         f"{ops}{fsq.ROW_CHECK_FCFF_METHODS_TIE_COUNT}", FLAG),
         ("FS_Quarterly", "Whole-of-life FCFE (CF Method) = FCFE (Dividend Method)",
          f"{ops}{fsq.ROW_CHECK_FCFE_LIFETIME_TIE}", FLAG),
         ("FS_Annual", "Construction-period BS balances every year",

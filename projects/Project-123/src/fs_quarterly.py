@@ -8,6 +8,7 @@ import calc_cfads as cfads
 import calc_financing_cons as fin_cons
 import calc_financing_ops as fin_ops
 import calc_tax as tax
+import calc_working_capital as wc
 from inputs import ProjectInputs
 from timeline import Timeline
 # Source-sheet row constants, imported rather than restated — see the note in calc_tax.py.
@@ -18,7 +19,6 @@ from calc_revenue_opex import (
 )
 from workbook_builder import (
     FIRST_DATA_COL,
-    COLOR_INPUT,
     COLOR_FORMULA,
     COLOR_LINK,
     TAB_COLOR_OUTPUT,
@@ -58,30 +58,32 @@ ROW_BS_HEADER = 22
 ROW_BS_ASSETS_HEADER = 23
 ROW_BS_CURRENT_ASSETS_HEADER = 24
 ROW_BS_CASH = 25
-ROW_BS_TOTAL_CURRENT_ASSETS = 26
-ROW_BS_NONCURRENT_ASSETS_HEADER = 27
-ROW_BS_DSRA = 28
-ROW_BS_MRA = 29
-ROW_BS_PPE_NET = 30
-ROW_BS_TOTAL_NONCURRENT_ASSETS = 31
-ROW_BS_TOTAL_ASSETS = 32
+ROW_BS_AR = 26  # trade receivables — linked from Calc_Working_Capital
+ROW_BS_TOTAL_CURRENT_ASSETS = 27
+ROW_BS_NONCURRENT_ASSETS_HEADER = 28
+ROW_BS_DSRA = 29
+ROW_BS_MRA = 30
+ROW_BS_PPE_NET = 31
+ROW_BS_TOTAL_NONCURRENT_ASSETS = 32
+ROW_BS_TOTAL_ASSETS = 33
 
-ROW_BS_LIABILITIES_HEADER = 34
-ROW_BS_CURRENT_LIAB_HEADER = 35
-ROW_BS_DEBT_CURRENT = 36  # portion due within the next 4 quarters
-ROW_BS_TOTAL_CURRENT_LIAB = 37
-ROW_BS_NONCURRENT_LIAB_HEADER = 38
-ROW_BS_DEBT_NONCURRENT = 39
-ROW_BS_TOTAL_NONCURRENT_LIAB = 40
-ROW_BS_TOTAL_LIABILITIES = 41
+ROW_BS_LIABILITIES_HEADER = 35
+ROW_BS_CURRENT_LIAB_HEADER = 36
+ROW_BS_DEBT_CURRENT = 37  # portion due within the next 4 quarters
+ROW_BS_AP = 38  # trade payables — linked from Calc_Working_Capital
+ROW_BS_TOTAL_CURRENT_LIAB = 39
+ROW_BS_NONCURRENT_LIAB_HEADER = 40
+ROW_BS_DEBT_NONCURRENT = 41
+ROW_BS_TOTAL_NONCURRENT_LIAB = 42
+ROW_BS_TOTAL_LIABILITIES = 43
 
-ROW_BS_EQUITY_HEADER = 43
-ROW_BS_PAID_IN_CAPITAL = 44
-ROW_BS_RETAINED_EARNINGS = 45
-ROW_BS_TOTAL_EQUITY = 46
+ROW_BS_EQUITY_HEADER = 45
+ROW_BS_PAID_IN_CAPITAL = 46
+ROW_BS_RETAINED_EARNINGS = 47
+ROW_BS_TOTAL_EQUITY = 48
 
-ROW_BS_TOTAL_LIAB_EQUITY = 48
-ROW_BS_CHECK_A_MINUS_L = 49  # displays Assets - Liabilities for a visual E = A - L proof
+ROW_BS_TOTAL_LIAB_EQUITY = 50
+ROW_BS_CHECK_A_MINUS_L = 51  # displays Assets - Liabilities for a visual E = A - L proof
 
 # ---------------------------------------------------------------------------------
 # CASH FLOW STATEMENT — indirect method. DSRA/MRA reserve funding is NOT shown within
@@ -92,41 +94,42 @@ ROW_BS_CHECK_A_MINUS_L = 49  # displays Assets - Liabilities for a visual E = A 
 # cash as a schedule beneath it — the "adjustment for restricted cash" sits below the
 # main statement rather than being netted into CFF.
 # ---------------------------------------------------------------------------------
-ROW_CF_HEADER = 51
-ROW_CFO_NI = 52
-ROW_CFO_ADDBACK_DEPR = 53
-ROW_CFO_WC_CHANGE = 54  # placeholder — see note at the cell itself
-ROW_CFO = 55
-ROW_CFI = 56
-ROW_CFF_PRINCIPAL = 57
-ROW_CFF_DIVIDENDS = 58
-ROW_CFF_EQUITY_INJECTION = 59
-ROW_CFF = 60
-ROW_NET_CHANGE_TOTAL_CASH = 61
-ROW_OPENING_TOTAL_CASH = 62
-ROW_CLOSING_TOTAL_CASH = 63
+ROW_CF_HEADER = 53
+ROW_CFO_NI = 54
+ROW_CFO_ADDBACK_DEPR = 55
+ROW_CFO_WC_CHANGE = 56  # linked from Calc_Working_Capital — no longer a hardcoded zero
+ROW_CFO = 57
+ROW_CFI = 58
+ROW_CFF_PRINCIPAL = 59
+ROW_CFF_DIVIDENDS = 60
+ROW_CFF_EQUITY_INJECTION = 61
+ROW_CFF = 62
+ROW_NET_CHANGE_TOTAL_CASH = 63
+ROW_OPENING_TOTAL_CASH = 64
+ROW_CLOSING_TOTAL_CASH = 65
 
-ROW_CF_RESTRICTED_HEADER = 65
-ROW_CF_LESS_DSRA = 66
-ROW_CF_LESS_MRA = 67
-ROW_CLOSING_CASH = 68  # closing UNRESTRICTED cash — this is what feeds the BS cash line
+ROW_CF_RESTRICTED_HEADER = 67
+ROW_CF_LESS_DSRA = 68
+ROW_CF_LESS_MRA = 69
+ROW_CLOSING_CASH = 70  # closing UNRESTRICTED cash — this is what feeds the BS cash line
 
-# Direct method — cross-check on CFO only (no AR/AP/inventory anywhere in the model, so
-# cash receipts/payments equal the P&L lines exactly; a mismatch means the indirect build
-# or a source link is wrong, not a timing difference).
-ROW_CFD_HEADER = 70
-ROW_CFD_RECEIPTS = 71
-ROW_CFD_OPEX_PAID = 72
-ROW_CFD_INTEREST_PAID = 73
-ROW_CFD_TAX_PAID = 74
-ROW_CFD_LC_FEE_PAID = 75
-ROW_CFO_DIRECT = 76
-ROW_CHECK_DIRECT_TIES_INDIRECT = 77
+# Direct method — cross-check on CFO. Now that working capital is modelled, receipts and
+# payments are Calc_Working_Capital's own Collections/Payments rows, not Revenue/Opex
+# directly — a mismatch here means the indirect build, the WC roll-forward, or a source
+# link is wrong.
+ROW_CFD_HEADER = 72
+ROW_CFD_RECEIPTS = 73
+ROW_CFD_OPEX_PAID = 74
+ROW_CFD_INTEREST_PAID = 75
+ROW_CFD_TAX_PAID = 76
+ROW_CFD_LC_FEE_PAID = 77
+ROW_CFO_DIRECT = 78
+ROW_CHECK_DIRECT_TIES_INDIRECT = 79
 
-ROW_CHECK_HEADER = 79
-ROW_CHECK_BS_BALANCES_COUNT = 80         # count of quarters where the BS does not balance
-ROW_CHECK_CASH_TIES_BUFFER = 81          # closing unrestricted cash ties to Calc_CFADS' buffer
-ROW_CHECK_DIRECT_TIES_INDIRECT_COUNT = 82  # count of quarters where direct CFO != indirect CFO
+ROW_CHECK_HEADER = 81
+ROW_CHECK_BS_BALANCES_COUNT = 82         # count of quarters where the BS does not balance
+ROW_CHECK_CASH_TIES_BUFFER = 83          # closing unrestricted cash ties to Calc_CFADS' buffer
+ROW_CHECK_DIRECT_TIES_INDIRECT_COUNT = 84  # count of quarters where direct CFO != indirect CFO
 
 # ---------------------------------------------------------------------------------
 # FREE CASH FLOW — two independently-derived views of FCFF and FCFE, cross-checked.
@@ -152,14 +155,14 @@ ROW_CHECK_DIRECT_TIES_INDIRECT_COUNT = 82  # count of quarters where direct CFO 
 # from the buffer roll-forward (Distribution - Injection = CAFD - Change in Buffer, summed
 # across all quarters, where the buffer starts at its Financial-Close value and ends at 0).
 # ---------------------------------------------------------------------------------
-ROW_FCF_HEADER = 84
-ROW_FCFF_CF_METHOD = 85
-ROW_FCFF_CFADS_METHOD = 86
-ROW_CHECK_FCFF_METHODS_TIE_COUNT = 87
+ROW_FCF_HEADER = 86
+ROW_FCFF_CF_METHOD = 87
+ROW_FCFF_CFADS_METHOD = 88
+ROW_CHECK_FCFF_METHODS_TIE_COUNT = 89
 
-ROW_FCFE_CF_METHOD = 89
-ROW_FCFE_DIVIDEND_METHOD = 90
-ROW_CHECK_FCFE_LIFETIME_TIE = 91
+ROW_FCFE_CF_METHOD = 91
+ROW_FCFE_DIVIDEND_METHOD = 92
+ROW_CHECK_FCFE_LIFETIME_TIE = 93
 
 
 def build_fs_quarterly(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) -> Worksheet:
@@ -190,6 +193,7 @@ def build_fs_quarterly(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) 
     _bold_label(ws, ROW_BS_ASSETS_HEADER, "ASSETS")
     _sub_label(ws, ROW_BS_CURRENT_ASSETS_HEADER, "Current Assets")
     _label(ws, ROW_BS_CASH, "Cash & Cash Equivalents ($) — unrestricted")
+    _label(ws, ROW_BS_AR, "Trade Receivables ($) — linked from Calc_Working_Capital")
     _bold_label(ws, ROW_BS_TOTAL_CURRENT_ASSETS, "Total Current Assets ($)")
     _sub_label(ws, ROW_BS_NONCURRENT_ASSETS_HEADER, "Non-Current Assets")
     _label(ws, ROW_BS_DSRA, "DSRA Balance ($) — restricted cash")
@@ -201,6 +205,7 @@ def build_fs_quarterly(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) 
     _bold_label(ws, ROW_BS_LIABILITIES_HEADER, "LIABILITIES")
     _sub_label(ws, ROW_BS_CURRENT_LIAB_HEADER, "Current Liabilities")
     _label(ws, ROW_BS_DEBT_CURRENT, "Debt — Current Portion ($) — due within 4 quarters")
+    _label(ws, ROW_BS_AP, "Trade Payables ($) — linked from Calc_Working_Capital")
     _bold_label(ws, ROW_BS_TOTAL_CURRENT_LIAB, "Total Current Liabilities ($)")
     _sub_label(ws, ROW_BS_NONCURRENT_LIAB_HEADER, "Non-Current Liabilities")
     _label(ws, ROW_BS_DEBT_NONCURRENT, "Debt — Non-Current Portion ($)")
@@ -219,7 +224,7 @@ def build_fs_quarterly(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) 
     _label(ws, ROW_CFO_NI, "Net Income ($)")
     _label(ws, ROW_CFO_ADDBACK_DEPR, "Add back: Depreciation ($)")
     _label(ws, ROW_CFO_WC_CHANGE,
-           "Change in Working Capital ($) — placeholder; no AR/AP/inventory modelled (Phase 2/3 scope)")
+           "Change in Working Capital ($) — linked from Calc_Working_Capital")
     _bold_label(ws, ROW_CFO, "Cash Flow from Operations ($)")
     _bold_label(ws, ROW_CFI, "Cash Flow from Investing ($) — maintenance capex")
     _label(ws, ROW_CFF_PRINCIPAL, "Debt Principal Repayment ($)")
@@ -254,7 +259,9 @@ def build_fs_quarterly(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) 
     _label(ws, ROW_FCFF_CF_METHOD, "FCFF ($) — Cash Flow Statement method = CFO + CFI + Interest + LC Fee")
     _label(ws, ROW_FCFF_CFADS_METHOD,
            "FCFF ($) — CFADS method (Calc_CFADS); used for reported PIRR")
-    _label(ws, ROW_CHECK_FCFF_METHODS_TIE_COUNT, "# of quarters where the two FCFF views differ (should be 0)")
+    _label(ws, ROW_CHECK_FCFF_METHODS_TIE_COUNT,
+           "Check: whole-of-life FCFF (CF Method) = FCFF (CFADS Method) — differs by that "
+           "quarter's ΔNWC period-to-period, ties in total")
     _label(ws, ROW_FCFE_CF_METHOD,
            "FCFE ($) — Cash Flow Statement method = CFO + CFI - Principal - DSRA Funding - MRA Funding "
            "(pre-distribution-policy)")
@@ -293,10 +300,7 @@ def build_fs_quarterly(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) 
         # at ROW_CLOSING_CASH even though it's laid out further down the sheet) ---
         _formula(ws, col, ROW_CFO_NI, f"={col}{ROW_NET_INCOME}")
         _formula(ws, col, ROW_CFO_ADDBACK_DEPR, f"={col}{ROW_DEPRECIATION}")
-        wc_cell = ws[f"{col}{ROW_CFO_WC_CHANGE}"]
-        wc_cell.value = 0.0
-        wc_cell.font = Font(color=COLOR_INPUT)
-        wc_cell.number_format = "#,##0"
+        _link(ws, col, ROW_CFO_WC_CHANGE, f"Calc_Working_Capital!{col}{wc.ROW_CHANGE_IN_NWC}")
         _formula(ws, col, ROW_CFO,
                  f"={col}{ROW_CFO_NI}+{col}{ROW_CFO_ADDBACK_DEPR}+{col}{ROW_CFO_WC_CHANGE}", bold=True)
         _formula(ws, col, ROW_CFI, f"=-Calc_CFADS!{col}{cfads.ROW_MAINT_CAPEX}", bold=True)
@@ -327,8 +331,8 @@ def build_fs_quarterly(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) 
                  f"={col}{ROW_CLOSING_TOTAL_CASH}+{col}{ROW_CF_LESS_DSRA}+{col}{ROW_CF_LESS_MRA}", bold=True)
 
         # --- Direct method cross-check ---
-        _formula(ws, col, ROW_CFD_RECEIPTS, f"={col}{ROW_REVENUE}")
-        _formula(ws, col, ROW_CFD_OPEX_PAID, f"=-{col}{ROW_OPEX}")
+        _link(ws, col, ROW_CFD_RECEIPTS, f"Calc_Working_Capital!{col}{wc.ROW_AR_COLLECTIONS}")
+        _link(ws, col, ROW_CFD_OPEX_PAID, f"-Calc_Working_Capital!{col}{wc.ROW_AP_PAYMENTS}")
         _formula(ws, col, ROW_CFD_INTEREST_PAID, f"=-{col}{ROW_INTEREST_EXPENSE}")
         _formula(ws, col, ROW_CFD_TAX_PAID, f"=-{col}{ROW_TAX}")
         _formula(ws, col, ROW_CFD_LC_FEE_PAID, f"=-{col}{ROW_LC_FEE}")
@@ -340,7 +344,9 @@ def build_fs_quarterly(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) 
 
         # --- Balance Sheet ---
         _formula(ws, col, ROW_BS_CASH, f"={col}{ROW_CLOSING_CASH}")
-        _formula(ws, col, ROW_BS_TOTAL_CURRENT_ASSETS, f"={col}{ROW_BS_CASH}", bold=True)
+        _link(ws, col, ROW_BS_AR, f"Calc_Working_Capital!{col}{wc.ROW_AR_BALANCE_CF}")
+        _formula(ws, col, ROW_BS_TOTAL_CURRENT_ASSETS,
+                 f"={col}{ROW_BS_CASH}+{col}{ROW_BS_AR}", bold=True)
 
         # CFI is already negative, so subtracting it capitalises the maintenance spend.
         if i == 0:
@@ -358,7 +364,9 @@ def build_fs_quarterly(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) 
         closing_bal_formula = f"Calc_Financing_Ops!{col}{fin_ops.ROW_CLOSING_BAL}"
         current_debt_formula = _current_debt_formula(i, n_quarters, col, closing_bal_formula)
         _formula(ws, col, ROW_BS_DEBT_CURRENT, current_debt_formula)
-        _formula(ws, col, ROW_BS_TOTAL_CURRENT_LIAB, f"={col}{ROW_BS_DEBT_CURRENT}", bold=True)
+        _link(ws, col, ROW_BS_AP, f"Calc_Working_Capital!{col}{wc.ROW_AP_BALANCE_CF}")
+        _formula(ws, col, ROW_BS_TOTAL_CURRENT_LIAB,
+                 f"={col}{ROW_BS_DEBT_CURRENT}+{col}{ROW_BS_AP}", bold=True)
         _formula(ws, col, ROW_BS_DEBT_NONCURRENT, f"={closing_bal_formula}-{col}{ROW_BS_DEBT_CURRENT}")
         _formula(ws, col, ROW_BS_TOTAL_NONCURRENT_LIAB, f"={col}{ROW_BS_DEBT_NONCURRENT}", bold=True)
         _formula(ws, col, ROW_BS_TOTAL_LIABILITIES,
@@ -425,11 +433,19 @@ def build_fs_quarterly(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) 
     # An independent tie-out: the statements build cash from CFO/CFI/CFF, while Calc_CFADS
     # builds the same balance from the waterfall. They are separate derivations, so a
     # mismatch means one of them is wrong.
+    # Closing cash ties to Calc_CFADS' buffer PLUS the cumulative Change in NWC to date:
+    # the buffer/distribution waterfall in Calc_CFADS runs off accrual CFADS and has no
+    # concept of working capital, so any cash working capital has trapped (or released)
+    # so far sits on top of whatever the buffer mechanism thinks it retained. This nets
+    # to 0 by the final quarter once AR/AP wind down, but not before — see
+    # Calc_Working_Capital's own note on why the final-quarter balances are forced to 0.
     cash_tie = ws[f"{last_q_col}{ROW_CHECK_CASH_TIES_BUFFER}"]
     cash_tie.value = (
         f"=IF(SUMPRODUCT(--(ROUND({first_col}{ROW_CLOSING_CASH}:{last_q_col}{ROW_CLOSING_CASH}"
         f"-Calc_CFADS!{first_col}{cfads.ROW_BUFFER_CLOSING}:"
-        f"Calc_CFADS!{last_q_col}{cfads.ROW_BUFFER_CLOSING},2)<>0))=0,1,0)"
+        f"Calc_CFADS!{last_q_col}{cfads.ROW_BUFFER_CLOSING}"
+        f"-Calc_Working_Capital!{first_col}{wc.ROW_CUMULATIVE_CHANGE_IN_NWC}:"
+        f"Calc_Working_Capital!{last_q_col}{wc.ROW_CUMULATIVE_CHANGE_IN_NWC},2)<>0))=0,1,0)"
     )
     cash_tie.font = Font(color=COLOR_FORMULA)
 
@@ -440,10 +456,15 @@ def build_fs_quarterly(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) 
     )
     direct_tie_count.font = Font(color=COLOR_FORMULA)
 
+    # Whole-of-life tie, not per-quarter: Calc_CFADS' FCFF is deliberately ex-working-
+    # capital (same convention as PIRR excluding IDC — a debt-sizing/unlevered-return
+    # basis shouldn't move on working capital timing noise), while the CF-statement
+    # method naturally includes it via CFO. The two diverge quarter-by-quarter by exactly
+    # that quarter's Change in NWC, but tie in total once AR/AP wind down to 0.
     fcff_tie = ws[f"{last_q_col}{ROW_CHECK_FCFF_METHODS_TIE_COUNT}"]
     fcff_tie.value = (
-        f"=SUMPRODUCT(--(ROUND({first_col}{ROW_FCFF_CF_METHOD}:{last_q_col}{ROW_FCFF_CF_METHOD}"
-        f"-{first_col}{ROW_FCFF_CFADS_METHOD}:{last_q_col}{ROW_FCFF_CFADS_METHOD},2)<>0))"
+        f"=IF(ROUND(SUM({first_col}{ROW_FCFF_CF_METHOD}:{last_q_col}{ROW_FCFF_CF_METHOD})"
+        f"-SUM({first_col}{ROW_FCFF_CFADS_METHOD}:{last_q_col}{ROW_FCFF_CFADS_METHOD}),2)=0,1,0)"
     )
     fcff_tie.font = Font(color=COLOR_FORMULA)
 

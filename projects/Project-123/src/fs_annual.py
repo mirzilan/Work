@@ -49,75 +49,77 @@ ROW_BS_HEADER = 21
 ROW_BS_ASSETS_HEADER = 22
 ROW_BS_CURRENT_ASSETS_HEADER = 23
 ROW_BS_CASH = 24
-ROW_BS_TOTAL_CURRENT_ASSETS = 25
-ROW_BS_NONCURRENT_ASSETS_HEADER = 26
-ROW_BS_DSRA = 27
-ROW_BS_MRA = 28
-ROW_BS_PPE_NET = 29
-ROW_BS_TOTAL_NONCURRENT_ASSETS = 30
-ROW_BS_TOTAL_ASSETS = 31
+ROW_BS_AR = 25  # trade receivables — annual sum's year-end pull of FS_Quarterly's own row
+ROW_BS_TOTAL_CURRENT_ASSETS = 26
+ROW_BS_NONCURRENT_ASSETS_HEADER = 27
+ROW_BS_DSRA = 28
+ROW_BS_MRA = 29
+ROW_BS_PPE_NET = 30
+ROW_BS_TOTAL_NONCURRENT_ASSETS = 31
+ROW_BS_TOTAL_ASSETS = 32
 
-ROW_BS_LIABILITIES_HEADER = 33
-ROW_BS_CURRENT_LIAB_HEADER = 34
-ROW_BS_DEBT_CURRENT = 35
-ROW_BS_TOTAL_CURRENT_LIAB = 36
-ROW_BS_NONCURRENT_LIAB_HEADER = 37
-ROW_BS_DEBT_NONCURRENT = 38
-ROW_BS_TOTAL_NONCURRENT_LIAB = 39
-ROW_BS_TOTAL_LIABILITIES = 40
+ROW_BS_LIABILITIES_HEADER = 34
+ROW_BS_CURRENT_LIAB_HEADER = 35
+ROW_BS_DEBT_CURRENT = 36
+ROW_BS_AP = 37  # trade payables — year-end pull of FS_Quarterly's own row
+ROW_BS_TOTAL_CURRENT_LIAB = 38
+ROW_BS_NONCURRENT_LIAB_HEADER = 39
+ROW_BS_DEBT_NONCURRENT = 40
+ROW_BS_TOTAL_NONCURRENT_LIAB = 41
+ROW_BS_TOTAL_LIABILITIES = 42
 
-ROW_BS_EQUITY_HEADER = 42
-ROW_BS_PAID_IN_CAPITAL = 43
-ROW_BS_RETAINED_EARNINGS = 44
-ROW_BS_TOTAL_EQUITY = 45
+ROW_BS_EQUITY_HEADER = 44
+ROW_BS_PAID_IN_CAPITAL = 45
+ROW_BS_RETAINED_EARNINGS = 46
+ROW_BS_TOTAL_EQUITY = 47
 
-ROW_BS_TOTAL_LIAB_EQUITY = 47
-ROW_BS_CHECK_A_MINUS_L = 48
+ROW_BS_TOTAL_LIAB_EQUITY = 49
+ROW_BS_CHECK_A_MINUS_L = 50
 
 # --- Cash Flow (annual sums for flows, year-end for the cash walk) ---
-ROW_CF_HEADER = 50
-ROW_CFO_NI = 51
-ROW_CFO_ADDBACK_DEPR = 52
-ROW_CFO_WC_CHANGE = 53
-ROW_CFO = 54
-ROW_CFI = 55
-ROW_CFF_PRINCIPAL = 56
-ROW_CFF_DIVIDENDS = 57
-ROW_CFF_EQUITY_INJECTION = 58
-ROW_CFF = 59
-ROW_NET_CHANGE_TOTAL_CASH = 60
-ROW_OPENING_TOTAL_CASH = 61
-ROW_CLOSING_TOTAL_CASH = 62
+ROW_CF_HEADER = 52
+ROW_CFO_NI = 53
+ROW_CFO_ADDBACK_DEPR = 54
+ROW_CFO_WC_CHANGE = 55
+ROW_CFO = 56
+ROW_CFI = 57
+ROW_CFF_PRINCIPAL = 58
+ROW_CFF_DIVIDENDS = 59
+ROW_CFF_EQUITY_INJECTION = 60
+ROW_CFF = 61
+ROW_NET_CHANGE_TOTAL_CASH = 62
+ROW_OPENING_TOTAL_CASH = 63
+ROW_CLOSING_TOTAL_CASH = 64
 
-ROW_CF_RESTRICTED_HEADER = 64
-ROW_CF_LESS_DSRA = 65
-ROW_CF_LESS_MRA = 66
-ROW_CLOSING_CASH = 67
+ROW_CF_RESTRICTED_HEADER = 66
+ROW_CF_LESS_DSRA = 67
+ROW_CF_LESS_MRA = 68
+ROW_CLOSING_CASH = 69
 
-ROW_CFD_HEADER = 69
-ROW_CFD_RECEIPTS = 70
-ROW_CFD_OPEX_PAID = 71
-ROW_CFD_INTEREST_PAID = 72
-ROW_CFD_TAX_PAID = 73
-ROW_CFD_LC_FEE_PAID = 74
-ROW_CFO_DIRECT = 75
-ROW_CHECK_DIRECT_TIES_INDIRECT = 76
+ROW_CFD_HEADER = 71
+ROW_CFD_RECEIPTS = 72
+ROW_CFD_OPEX_PAID = 73
+ROW_CFD_INTEREST_PAID = 74
+ROW_CFD_TAX_PAID = 75
+ROW_CFD_LC_FEE_PAID = 76
+ROW_CFO_DIRECT = 77
+ROW_CHECK_DIRECT_TIES_INDIRECT = 78
 
-ROW_CHECK_HEADER = 78
-ROW_CHECK_BS_BALANCES_COUNT = 79
-ROW_CHECK_CASH_TIES_BUFFER = 80
-ROW_CHECK_DIRECT_TIES_INDIRECT_COUNT = 81
+ROW_CHECK_HEADER = 80
+ROW_CHECK_BS_BALANCES_COUNT = 81
+ROW_CHECK_CASH_TIES_BUFFER = 82
+ROW_CHECK_DIRECT_TIES_INDIRECT_COUNT = 83
 
 # FCFF / FCFE — two views, cross-checked; annual sums of FS_Quarterly's own dual-view rows.
 # See FS_Quarterly for the full explanation of why FCFF ties exactly every period while
 # FCFE only ties in total (buffer/lock-up timing).
-ROW_FCF_HEADER = 83
-ROW_FCFF_CF_METHOD = 84
-ROW_FCFF_CFADS_METHOD = 85
-ROW_CHECK_FCFF_METHODS_TIE_COUNT = 86
-ROW_FCFE_CF_METHOD = 87
-ROW_FCFE_DIVIDEND_METHOD = 88
-ROW_CHECK_FCFE_LIFETIME_TIE = 89
+ROW_FCF_HEADER = 85
+ROW_FCFF_CF_METHOD = 86
+ROW_FCFF_CFADS_METHOD = 87
+ROW_CHECK_FCFF_METHODS_TIE_COUNT = 88
+ROW_FCFE_CF_METHOD = 89
+ROW_FCFE_DIVIDEND_METHOD = 90
+ROW_CHECK_FCFE_LIFETIME_TIE = 91
 
 # Backward-compat aliases — the pre-classified BS exposed one row each for Debt and Cash;
 # downstream sheets (Valuation_SellDown) still want a single "closing debt"/"closing
@@ -131,41 +133,41 @@ ROW_TOTAL_EQUITY_CLOSING = ROW_BS_TOTAL_EQUITY
 # This block uses per-PERIOD columns (one column per month/quarter of the whole project
 # life), which is a different column scheme from the per-YEAR columns the three statements
 # above use — the two must never be read from each other's columns.
-ROW_XIRR_DATE = 92
-ROW_XIRR_PROJECT_CF = 93
-ROW_XIRR_EQUITY_CF = 94
+ROW_XIRR_DATE = 94
+ROW_XIRR_PROJECT_CF = 95
+ROW_XIRR_EQUITY_CF = 96
 
-ROW_PIRR_LABEL = 97
-ROW_PIRR_VALUE = 98
-ROW_EIRR_LABEL = 99
-ROW_EIRR_VALUE = 100
+ROW_PIRR_LABEL = 99
+ROW_PIRR_VALUE = 100
+ROW_EIRR_LABEL = 101
+ROW_EIRR_VALUE = 102
 
 # Construction-period annual summary (monthly source data rolled to project years)
-ROW_CONS_HEADER = 103
-ROW_CONS_YEAR_LABEL = 104
-ROW_CONS_CAPEX = 105
-ROW_CONS_IDC = 106
-ROW_CONS_DEBT_DRAWN = 107
-ROW_CONS_EQUITY_DRAWN = 108
-ROW_CONS_CUM_TPC = 109
-ROW_CONS_CLOSING_DEBT = 110
+ROW_CONS_HEADER = 105
+ROW_CONS_YEAR_LABEL = 106
+ROW_CONS_CAPEX = 107
+ROW_CONS_IDC = 108
+ROW_CONS_DEBT_DRAWN = 109
+ROW_CONS_EQUITY_DRAWN = 110
+ROW_CONS_CUM_TPC = 111
+ROW_CONS_CLOSING_DEBT = 112
 
 # Construction-period Balance Sheet — year-end, sourced from the same monthly cells as the
 # summary above. P&L is legitimately empty pre-COD (no revenue), but the BS still has to
 # provably balance every year so the Day-1 operating BS is derived, not asserted.
-ROW_CONS_BS_HEADER = 112
-ROW_CONS_BS_CASH = 113
-ROW_CONS_BS_DSRA = 114
-ROW_CONS_BS_PPE = 115
-ROW_CONS_BS_TOTAL_ASSETS = 116
-ROW_CONS_BS_DEBT = 117
-ROW_CONS_BS_PAID_IN_CAPITAL = 118
-ROW_CONS_BS_RETAINED_EARNINGS = 119
-ROW_CONS_BS_TOTAL_EQUITY = 120
-ROW_CONS_BS_TOTAL_LIAB_EQUITY = 121
+ROW_CONS_BS_HEADER = 114
+ROW_CONS_BS_CASH = 115
+ROW_CONS_BS_DSRA = 116
+ROW_CONS_BS_PPE = 117
+ROW_CONS_BS_TOTAL_ASSETS = 118
+ROW_CONS_BS_DEBT = 119
+ROW_CONS_BS_PAID_IN_CAPITAL = 120
+ROW_CONS_BS_RETAINED_EARNINGS = 121
+ROW_CONS_BS_TOTAL_EQUITY = 122
+ROW_CONS_BS_TOTAL_LIAB_EQUITY = 123
 
-ROW_CONS_CHECK_HEADER = 123
-ROW_CONS_CHECK_BS_BALANCES_COUNT = 124  # count of construction years where the BS does not balance
+ROW_CONS_CHECK_HEADER = 125
+ROW_CONS_CHECK_BS_BALANCES_COUNT = 126  # count of construction years where the BS does not balance
 
 # Construction Cash Flow Statement — monthly (matches Calc_Capex's own resolution), so the
 # XIRR helper's construction-period Equity CF reads from a built statement rather than
@@ -173,15 +175,15 @@ ROW_CONS_CHECK_BS_BALANCES_COUNT = 124  # count of construction years where the 
 # real investment, not a financing cost) so Net Cash Flow ties to zero every month except
 # the last, when the DSRA/Buffer are funded — the same cash pattern the construction BS
 # above already assumes.
-ROW_CONS_CF_HEADER = 126
-ROW_CONS_CF_INVESTING = 127     # -(Capex Draw + IDC)
-ROW_CONS_CF_DEBT_DRAWN = 128
-ROW_CONS_CF_EQUITY_DRAWN = 129
-ROW_CONS_CF_FINANCING = 130     # Debt Drawn + Equity Drawn
-ROW_CONS_CF_NET = 131
+ROW_CONS_CF_HEADER = 128
+ROW_CONS_CF_INVESTING = 129     # -(Capex Draw + IDC)
+ROW_CONS_CF_DEBT_DRAWN = 130
+ROW_CONS_CF_EQUITY_DRAWN = 131
+ROW_CONS_CF_FINANCING = 132     # Debt Drawn + Equity Drawn
+ROW_CONS_CF_NET = 133
 
-ROW_CONS_CF_CHECK_HEADER = 133
-ROW_CONS_CF_CHECK_NET_ZERO_COUNT = 134  # # of months where Net CF != 0 (all but the last)
+ROW_CONS_CF_CHECK_HEADER = 135
+ROW_CONS_CF_CHECK_NET_ZERO_COUNT = 136  # # of months where Net CF != 0 (all but the last)
 
 
 def _annual_col_letter(i: int) -> str:
@@ -220,6 +222,7 @@ def build_fs_annual(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) -> 
     _bold_label(ws, ROW_BS_ASSETS_HEADER, "ASSETS")
     _sub_label(ws, ROW_BS_CURRENT_ASSETS_HEADER, "Current Assets")
     _label(ws, ROW_BS_CASH, "Cash & Cash Equivalents ($) — unrestricted")
+    _label(ws, ROW_BS_AR, "Trade Receivables ($)")
     _bold_label(ws, ROW_BS_TOTAL_CURRENT_ASSETS, "Total Current Assets ($)")
     _sub_label(ws, ROW_BS_NONCURRENT_ASSETS_HEADER, "Non-Current Assets")
     _label(ws, ROW_BS_DSRA, "DSRA Balance ($) — restricted cash")
@@ -231,6 +234,7 @@ def build_fs_annual(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) -> 
     _bold_label(ws, ROW_BS_LIABILITIES_HEADER, "LIABILITIES")
     _sub_label(ws, ROW_BS_CURRENT_LIAB_HEADER, "Current Liabilities")
     _label(ws, ROW_BS_DEBT_CURRENT, "Debt — Current Portion ($)")
+    _label(ws, ROW_BS_AP, "Trade Payables ($)")
     _bold_label(ws, ROW_BS_TOTAL_CURRENT_LIAB, "Total Current Liabilities ($)")
     _sub_label(ws, ROW_BS_NONCURRENT_LIAB_HEADER, "Non-Current Liabilities")
     _label(ws, ROW_BS_DEBT_NONCURRENT, "Debt — Non-Current Portion ($)")
@@ -281,7 +285,8 @@ def build_fs_annual(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) -> 
     _section_header(ws, ROW_FCF_HEADER, "FREE CASH FLOW — TWO VIEWS, CROSS-CHECKED (annual sums)")
     _label(ws, ROW_FCFF_CF_METHOD, "FCFF ($) — Cash Flow Statement method (annual sum)")
     _label(ws, ROW_FCFF_CFADS_METHOD, "FCFF ($) — CFADS method (annual sum); used for reported PIRR")
-    _label(ws, ROW_CHECK_FCFF_METHODS_TIE_COUNT, "# of years where the two FCFF views differ (should be 0)")
+    _label(ws, ROW_CHECK_FCFF_METHODS_TIE_COUNT,
+           "Check: whole-of-life FCFF (CF Method) = FCFF (CFADS Method)")
     _label(ws, ROW_FCFE_CF_METHOD,
            "FCFE ($) — Cash Flow Statement method, pre-distribution-policy (annual sum)")
     _label(ws, ROW_FCFE_DIVIDEND_METHOD,
@@ -326,6 +331,8 @@ def build_fs_annual(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) -> 
     )
     stock_rows = (
         (ROW_BS_CASH, fsq.ROW_BS_CASH),
+        (ROW_BS_AR, fsq.ROW_BS_AR),
+        (ROW_BS_AP, fsq.ROW_BS_AP),
         (ROW_BS_DSRA, fsq.ROW_BS_DSRA),
         (ROW_BS_MRA, fsq.ROW_BS_MRA),
         (ROW_BS_PPE_NET, fsq.ROW_BS_PPE_NET),
@@ -435,10 +442,12 @@ def build_fs_annual(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) -> 
     )
     direct_tie_count.font = Font(color=COLOR_FORMULA)
 
+    # Whole-of-life tie, not per-year — see FS_Quarterly for why (Calc_CFADS' FCFF is
+    # deliberately ex-working-capital, same convention as PIRR excluding IDC).
     fcff_tie = ws[f"{last_col}{ROW_CHECK_FCFF_METHODS_TIE_COUNT}"]
     fcff_tie.value = (
-        f"=SUMPRODUCT(--(ROUND({first_col}{ROW_FCFF_CF_METHOD}:{last_col}{ROW_FCFF_CF_METHOD}"
-        f"-{first_col}{ROW_FCFF_CFADS_METHOD}:{last_col}{ROW_FCFF_CFADS_METHOD},2)<>0))"
+        f"=IF(ROUND(SUM({first_col}{ROW_FCFF_CF_METHOD}:{last_col}{ROW_FCFF_CF_METHOD})"
+        f"-SUM({first_col}{ROW_FCFF_CFADS_METHOD}:{last_col}{ROW_FCFF_CFADS_METHOD}),2)=0,1,0)"
     )
     fcff_tie.font = Font(color=COLOR_FORMULA)
 
