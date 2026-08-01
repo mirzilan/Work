@@ -16,51 +16,137 @@ from workbook_builder import (
 )
 import openpyxl.utils
 
+# FS_Annual mirrors FS_Quarterly's own layout section-for-section (P&L, then Balance
+# Sheet, then Cash Flow) — every row here is either an annual SUM of a FS_Quarterly flow
+# row or a year-end (last quarter) pull of a FS_Quarterly stock row. PIRR/EIRR sit below
+# the three statements, since they're a whole-of-life output, not part of any one of them.
+
 ROW_YEAR_LABEL = 2
-ROW_REVENUE = 4
-ROW_EBITDA = 5
-ROW_NET_INCOME = 6
-ROW_CASH_CLOSING = 7
-ROW_DEBT_CLOSING = 8
-ROW_TOTAL_EQUITY_CLOSING = 9
+
+# --- P&L (annual sums) ---
+ROW_PNL_HEADER = 4
+ROW_REVENUE = 5
+ROW_OPEX = 6
+ROW_EBITDA = 7
+ROW_DEPRECIATION = 8
+ROW_EBIT = 9
+ROW_INTEREST_EXPENSE = 10
+ROW_EBT = 11
+ROW_TAX = 12
+ROW_LC_FEE = 13
+ROW_NET_INCOME = 14
+
+# --- Balance Sheet (year-end, i.e. Q4 of each project year) ---
+ROW_BS_HEADER = 16
+ROW_BS_ASSETS_HEADER = 17
+ROW_BS_CURRENT_ASSETS_HEADER = 18
+ROW_BS_CASH = 19
+ROW_BS_TOTAL_CURRENT_ASSETS = 20
+ROW_BS_NONCURRENT_ASSETS_HEADER = 21
+ROW_BS_DSRA = 22
+ROW_BS_MRA = 23
+ROW_BS_PPE_NET = 24
+ROW_BS_TOTAL_NONCURRENT_ASSETS = 25
+ROW_BS_TOTAL_ASSETS = 26
+
+ROW_BS_LIABILITIES_HEADER = 28
+ROW_BS_CURRENT_LIAB_HEADER = 29
+ROW_BS_DEBT_CURRENT = 30
+ROW_BS_TOTAL_CURRENT_LIAB = 31
+ROW_BS_NONCURRENT_LIAB_HEADER = 32
+ROW_BS_DEBT_NONCURRENT = 33
+ROW_BS_TOTAL_NONCURRENT_LIAB = 34
+ROW_BS_TOTAL_LIABILITIES = 35
+
+ROW_BS_EQUITY_HEADER = 37
+ROW_BS_PAID_IN_CAPITAL = 38
+ROW_BS_RETAINED_EARNINGS = 39
+ROW_BS_TOTAL_EQUITY = 40
+
+ROW_BS_TOTAL_LIAB_EQUITY = 42
+ROW_BS_CHECK_A_MINUS_L = 43
+
+# --- Cash Flow (annual sums for flows, year-end for the cash walk) ---
+ROW_CF_HEADER = 45
+ROW_CFO_NI = 46
+ROW_CFO_ADDBACK_DEPR = 47
+ROW_CFO_WC_CHANGE = 48
+ROW_CFO = 49
+ROW_CFI = 50
+ROW_CFF_PRINCIPAL = 51
+ROW_CFF_DIVIDENDS = 52
+ROW_CFF_EQUITY_INJECTION = 53
+ROW_CFF = 54
+ROW_NET_CHANGE_TOTAL_CASH = 55
+ROW_OPENING_TOTAL_CASH = 56
+ROW_CLOSING_TOTAL_CASH = 57
+
+ROW_CF_RESTRICTED_HEADER = 59
+ROW_CF_LESS_DSRA = 60
+ROW_CF_LESS_MRA = 61
+ROW_CLOSING_CASH = 62
+
+ROW_CFD_HEADER = 64
+ROW_CFD_RECEIPTS = 65
+ROW_CFD_OPEX_PAID = 66
+ROW_CFD_INTEREST_PAID = 67
+ROW_CFD_TAX_PAID = 68
+ROW_CFD_LC_FEE_PAID = 69
+ROW_CFO_DIRECT = 70
+ROW_CHECK_DIRECT_TIES_INDIRECT = 71
+
+ROW_CHECK_HEADER = 73
+ROW_CHECK_BS_BALANCES_COUNT = 74
+ROW_CHECK_CASH_TIES_BUFFER = 75
+ROW_CHECK_DIRECT_TIES_INDIRECT_COUNT = 76
+
+# Backward-compat aliases — the pre-classified BS exposed one row each for Debt and Cash;
+# downstream sheets (Valuation_SellDown) still want a single "closing debt"/"closing
+# equity" figure, which is unambiguous here since Debt is the only liability category.
+ROW_CASH_CLOSING = ROW_CLOSING_CASH
+ROW_DEBT_CLOSING = ROW_BS_TOTAL_LIABILITIES
+ROW_TOTAL_EQUITY_CLOSING = ROW_BS_TOTAL_EQUITY
 
 # XIRR helper block: one continuous row of dates + one row of project (unlevered) cash flow,
 # one row of equity cash flow, spanning ALL periods (24 construction months + 80 ops quarters).
-ROW_XIRR_DATE = 13
-ROW_XIRR_PROJECT_CF = 14
-ROW_XIRR_EQUITY_CF = 15
+# This block uses per-PERIOD columns (one column per month/quarter of the whole project
+# life), which is a different column scheme from the per-YEAR columns the three statements
+# above use — the two must never be read from each other's columns.
+ROW_XIRR_DATE = 79
+ROW_XIRR_PROJECT_CF = 80
+ROW_XIRR_EQUITY_CF = 81
 
-ROW_PIRR_LABEL = 18
-ROW_PIRR_VALUE = 19
-ROW_EIRR_LABEL = 20
-ROW_EIRR_VALUE = 21
+ROW_PIRR_LABEL = 84
+ROW_PIRR_VALUE = 85
+ROW_EIRR_LABEL = 86
+ROW_EIRR_VALUE = 87
 
 # Construction-period annual summary (monthly source data rolled to project years)
-ROW_CONS_HEADER = 24
-ROW_CONS_YEAR_LABEL = 25
-ROW_CONS_CAPEX = 26
-ROW_CONS_IDC = 27
-ROW_CONS_DEBT_DRAWN = 28
-ROW_CONS_EQUITY_DRAWN = 29
-ROW_CONS_CUM_TPC = 30
-ROW_CONS_CLOSING_DEBT = 31
+ROW_CONS_HEADER = 90
+ROW_CONS_YEAR_LABEL = 91
+ROW_CONS_CAPEX = 92
+ROW_CONS_IDC = 93
+ROW_CONS_DEBT_DRAWN = 94
+ROW_CONS_EQUITY_DRAWN = 95
+ROW_CONS_CUM_TPC = 96
+ROW_CONS_CLOSING_DEBT = 97
 
 # Construction-period Balance Sheet — year-end, sourced from the same monthly cells as the
 # summary above. P&L is legitimately empty pre-COD (no revenue), but the BS still has to
 # provably balance every year so the Day-1 operating BS is derived, not asserted.
-ROW_CONS_BS_HEADER = 33
-ROW_CONS_BS_CASH = 34
-ROW_CONS_BS_DSRA = 35
-ROW_CONS_BS_PPE = 36
-ROW_CONS_BS_TOTAL_ASSETS = 37
-ROW_CONS_BS_DEBT = 38
-ROW_CONS_BS_PAID_IN_CAPITAL = 39
-ROW_CONS_BS_RETAINED_EARNINGS = 40
-ROW_CONS_BS_TOTAL_EQUITY = 41
-ROW_CONS_BS_TOTAL_LIAB_EQUITY = 42
+ROW_CONS_BS_HEADER = 99
+ROW_CONS_BS_CASH = 100
+ROW_CONS_BS_DSRA = 101
+ROW_CONS_BS_PPE = 102
+ROW_CONS_BS_TOTAL_ASSETS = 103
+ROW_CONS_BS_DEBT = 104
+ROW_CONS_BS_PAID_IN_CAPITAL = 105
+ROW_CONS_BS_RETAINED_EARNINGS = 106
+ROW_CONS_BS_TOTAL_EQUITY = 107
+ROW_CONS_BS_TOTAL_LIAB_EQUITY = 108
 
-ROW_CONS_CHECK_HEADER = 44
-ROW_CONS_CHECK_BS_BALANCES_COUNT = 45  # count of construction years where the BS does not balance
+ROW_CONS_CHECK_HEADER = 110
+ROW_CONS_CHECK_BS_BALANCES_COUNT = 111  # count of construction years where the BS does not balance
 
 
 def _annual_col_letter(i: int) -> str:
@@ -75,41 +161,212 @@ def build_fs_annual(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) -> 
     ws = wb.create_sheet("FS_Annual")
     ws.sheet_properties.tabColor = TAB_COLOR_OUTPUT
 
-    ws["A1"] = "FS_Annual — Rolled up from FS_Quarterly; PIRR/EIRR via XIRR (Stage 1a)"
+    ws["A1"] = ("FS_Annual — same P&L / Balance Sheet / Cash Flow as FS_Quarterly, "
+                "annualised; PIRR/EIRR via XIRR (Stage 1a)")
     ws["A1"].font = Font(bold=True, size=12)
 
     ws.cell(row=ROW_YEAR_LABEL, column=1, value="Project Year")
-    ws.cell(row=ROW_REVENUE, column=1, value="Revenue ($) — annual sum")
-    ws.cell(row=ROW_EBITDA, column=1, value="EBITDA ($) — annual sum")
-    ws.cell(row=ROW_NET_INCOME, column=1, value="Net Income ($) — annual sum")
-    ws.cell(row=ROW_CASH_CLOSING, column=1, value="Cash, Closing ($) — year-end")
-    ws.cell(row=ROW_DEBT_CLOSING, column=1, value="Debt, Closing ($) — year-end")
-    ws.cell(row=ROW_TOTAL_EQUITY_CLOSING, column=1, value="Total Equity, Closing ($) — year-end")
+
+    _section_header(ws, ROW_PNL_HEADER, "PROFIT & LOSS")
+    _label(ws, ROW_REVENUE, "Revenue ($) — annual sum")
+    _label(ws, ROW_OPEX, "Opex ($) — annual sum")
+    _label(ws, ROW_EBITDA, "EBITDA ($) — annual sum")
+    _label(ws, ROW_DEPRECIATION, "Depreciation ($) — annual sum")
+    _label(ws, ROW_EBIT, "EBIT ($) — annual sum")
+    _label(ws, ROW_INTEREST_EXPENSE, "Interest Expense ($) — annual sum")
+    _label(ws, ROW_EBT, "EBT ($) — annual sum")
+    _label(ws, ROW_TAX, "Tax ($) — annual sum")
+    _label(ws, ROW_LC_FEE, "DSRA LC Fee ($) — annual sum")
+    _bold_label(ws, ROW_NET_INCOME, "Net Income ($) — annual sum")
+
+    _section_header(ws, ROW_BS_HEADER, "BALANCE SHEET — year-end")
+    _bold_label(ws, ROW_BS_ASSETS_HEADER, "ASSETS")
+    _sub_label(ws, ROW_BS_CURRENT_ASSETS_HEADER, "Current Assets")
+    _label(ws, ROW_BS_CASH, "Cash & Cash Equivalents ($) — unrestricted")
+    _bold_label(ws, ROW_BS_TOTAL_CURRENT_ASSETS, "Total Current Assets ($)")
+    _sub_label(ws, ROW_BS_NONCURRENT_ASSETS_HEADER, "Non-Current Assets")
+    _label(ws, ROW_BS_DSRA, "DSRA Balance ($) — restricted cash")
+    _label(ws, ROW_BS_MRA, "MRA Balance ($) — restricted cash")
+    _label(ws, ROW_BS_PPE_NET, "PP&E, Net ($)")
+    _bold_label(ws, ROW_BS_TOTAL_NONCURRENT_ASSETS, "Total Non-Current Assets ($)")
+    _bold_label(ws, ROW_BS_TOTAL_ASSETS, "TOTAL ASSETS ($)")
+
+    _bold_label(ws, ROW_BS_LIABILITIES_HEADER, "LIABILITIES")
+    _sub_label(ws, ROW_BS_CURRENT_LIAB_HEADER, "Current Liabilities")
+    _label(ws, ROW_BS_DEBT_CURRENT, "Debt — Current Portion ($)")
+    _bold_label(ws, ROW_BS_TOTAL_CURRENT_LIAB, "Total Current Liabilities ($)")
+    _sub_label(ws, ROW_BS_NONCURRENT_LIAB_HEADER, "Non-Current Liabilities")
+    _label(ws, ROW_BS_DEBT_NONCURRENT, "Debt — Non-Current Portion ($)")
+    _bold_label(ws, ROW_BS_TOTAL_NONCURRENT_LIAB, "Total Non-Current Liabilities ($)")
+    _bold_label(ws, ROW_BS_TOTAL_LIABILITIES, "TOTAL LIABILITIES ($)")
+
+    _bold_label(ws, ROW_BS_EQUITY_HEADER, "EQUITY")
+    _label(ws, ROW_BS_PAID_IN_CAPITAL, "Paid-in Capital ($)")
+    _label(ws, ROW_BS_RETAINED_EARNINGS, "Retained Earnings ($)")
+    _bold_label(ws, ROW_BS_TOTAL_EQUITY, "TOTAL EQUITY ($)")
+
+    _bold_label(ws, ROW_BS_TOTAL_LIAB_EQUITY, "TOTAL LIABILITIES + EQUITY ($)")
+    _label(ws, ROW_BS_CHECK_A_MINUS_L, "Check: Assets − Liabilities (should equal Total Equity above)")
+
+    _section_header(ws, ROW_CF_HEADER, "CASH FLOW STATEMENT — INDIRECT METHOD")
+    _label(ws, ROW_CFO_NI, "Net Income ($) — annual sum")
+    _label(ws, ROW_CFO_ADDBACK_DEPR, "Add back: Depreciation ($) — annual sum")
+    _label(ws, ROW_CFO_WC_CHANGE, "Change in Working Capital ($) — annual sum; placeholder, see FS_Quarterly")
+    _bold_label(ws, ROW_CFO, "Cash Flow from Operations ($) — annual sum")
+    _bold_label(ws, ROW_CFI, "Cash Flow from Investing ($) — annual sum")
+    _label(ws, ROW_CFF_PRINCIPAL, "Debt Principal Repayment ($) — annual sum")
+    _label(ws, ROW_CFF_DIVIDENDS, "Distributions to Equity ($) — annual sum")
+    _label(ws, ROW_CFF_EQUITY_INJECTION, "Equity Injections ($) — annual sum")
+    _bold_label(ws, ROW_CFF, "Cash Flow from Financing ($) — annual sum")
+    _bold_label(ws, ROW_NET_CHANGE_TOTAL_CASH, "Net Change in Total Cash ($) — annual sum, incl. restricted")
+    _label(ws, ROW_OPENING_TOTAL_CASH, "Opening Total Cash ($) — start of year")
+    _bold_label(ws, ROW_CLOSING_TOTAL_CASH, "Closing Total Cash ($) — year-end")
+
+    _section_header(ws, ROW_CF_RESTRICTED_HEADER, "Reconciliation — Total Cash to Unrestricted Cash")
+    _label(ws, ROW_CF_LESS_DSRA, "Less: DSRA Balance ($) — year-end")
+    _label(ws, ROW_CF_LESS_MRA, "Less: MRA Balance ($) — year-end")
+    _bold_label(ws, ROW_CLOSING_CASH, "Closing Cash & Cash Equivalents ($) — unrestricted, year-end")
+
+    _section_header(ws, ROW_CFD_HEADER, "CASH FLOW STATEMENT — DIRECT METHOD (cross-check on CFO)")
+    _label(ws, ROW_CFD_RECEIPTS, "Cash Received from Customers ($) — annual sum")
+    _label(ws, ROW_CFD_OPEX_PAID, "Cash Paid for Opex ($) — annual sum")
+    _label(ws, ROW_CFD_INTEREST_PAID, "Cash Paid for Interest ($) — annual sum")
+    _label(ws, ROW_CFD_TAX_PAID, "Cash Paid for Tax ($) — annual sum")
+    _label(ws, ROW_CFD_LC_FEE_PAID, "Cash Paid — DSRA LC Fee ($) — annual sum")
+    _bold_label(ws, ROW_CFO_DIRECT, "Cash Flow from Operations ($) — Direct Method, annual sum")
+    _label(ws, ROW_CHECK_DIRECT_TIES_INDIRECT, "Check: Direct CFO = Indirect CFO")
+
+    ws.cell(row=ROW_CHECK_HEADER, column=1, value="Checks").font = Font(bold=True)
+    _label(ws, ROW_CHECK_BS_BALANCES_COUNT, "# of years where BS does not balance")
+    _label(ws, ROW_CHECK_CASH_TIES_BUFFER, "Check: Closing cash ties to FS_Quarterly at year-end")
+    _label(ws, ROW_CHECK_DIRECT_TIES_INDIRECT_COUNT, "# of years where Direct CFO != Indirect CFO")
 
     annual_buckets = _operations_only_annual_buckets(timeline)
+    n_years = len(annual_buckets)
 
+    flow_rows = (
+        (ROW_REVENUE, fsq.ROW_REVENUE),
+        (ROW_OPEX, fsq.ROW_OPEX),
+        (ROW_EBITDA, fsq.ROW_EBITDA),
+        (ROW_DEPRECIATION, fsq.ROW_DEPRECIATION),
+        (ROW_EBIT, fsq.ROW_EBIT),
+        (ROW_INTEREST_EXPENSE, fsq.ROW_INTEREST_EXPENSE),
+        (ROW_EBT, fsq.ROW_EBT),
+        (ROW_TAX, fsq.ROW_TAX),
+        (ROW_LC_FEE, fsq.ROW_LC_FEE),
+        (ROW_NET_INCOME, fsq.ROW_NET_INCOME),
+        (ROW_CFO_NI, fsq.ROW_CFO_NI),
+        (ROW_CFO_ADDBACK_DEPR, fsq.ROW_CFO_ADDBACK_DEPR),
+        (ROW_CFO_WC_CHANGE, fsq.ROW_CFO_WC_CHANGE),
+        (ROW_CFO, fsq.ROW_CFO),
+        (ROW_CFI, fsq.ROW_CFI),
+        (ROW_CFF_PRINCIPAL, fsq.ROW_CFF_PRINCIPAL),
+        (ROW_CFF_DIVIDENDS, fsq.ROW_CFF_DIVIDENDS),
+        (ROW_CFF_EQUITY_INJECTION, fsq.ROW_CFF_EQUITY_INJECTION),
+        (ROW_CFF, fsq.ROW_CFF),
+        (ROW_NET_CHANGE_TOTAL_CASH, fsq.ROW_NET_CHANGE_TOTAL_CASH),
+        (ROW_CFD_RECEIPTS, fsq.ROW_CFD_RECEIPTS),
+        (ROW_CFD_OPEX_PAID, fsq.ROW_CFD_OPEX_PAID),
+        (ROW_CFD_INTEREST_PAID, fsq.ROW_CFD_INTEREST_PAID),
+        (ROW_CFD_TAX_PAID, fsq.ROW_CFD_TAX_PAID),
+        (ROW_CFD_LC_FEE_PAID, fsq.ROW_CFD_LC_FEE_PAID),
+        (ROW_CFO_DIRECT, fsq.ROW_CFO_DIRECT),
+    )
+    stock_rows = (
+        (ROW_BS_CASH, fsq.ROW_BS_CASH),
+        (ROW_BS_DSRA, fsq.ROW_BS_DSRA),
+        (ROW_BS_MRA, fsq.ROW_BS_MRA),
+        (ROW_BS_PPE_NET, fsq.ROW_BS_PPE_NET),
+        (ROW_BS_TOTAL_ASSETS, fsq.ROW_BS_TOTAL_ASSETS),
+        (ROW_BS_DEBT_CURRENT, fsq.ROW_BS_DEBT_CURRENT),
+        (ROW_BS_DEBT_NONCURRENT, fsq.ROW_BS_DEBT_NONCURRENT),
+        (ROW_BS_TOTAL_LIABILITIES, fsq.ROW_BS_TOTAL_LIABILITIES),
+        (ROW_BS_PAID_IN_CAPITAL, fsq.ROW_BS_PAID_IN_CAPITAL),
+        (ROW_BS_RETAINED_EARNINGS, fsq.ROW_BS_RETAINED_EARNINGS),
+        (ROW_BS_TOTAL_EQUITY, fsq.ROW_BS_TOTAL_EQUITY),
+        (ROW_BS_TOTAL_LIAB_EQUITY, fsq.ROW_BS_TOTAL_LIAB_EQUITY),
+        (ROW_CLOSING_TOTAL_CASH, fsq.ROW_CLOSING_TOTAL_CASH),
+        (ROW_CLOSING_CASH, fsq.ROW_CLOSING_CASH),
+        (ROW_BS_TOTAL_CURRENT_ASSETS, fsq.ROW_BS_TOTAL_CURRENT_ASSETS),
+        (ROW_BS_TOTAL_NONCURRENT_ASSETS, fsq.ROW_BS_TOTAL_NONCURRENT_ASSETS),
+        (ROW_BS_TOTAL_CURRENT_LIAB, fsq.ROW_BS_TOTAL_CURRENT_LIAB),
+        (ROW_BS_TOTAL_NONCURRENT_LIAB, fsq.ROW_BS_TOTAL_NONCURRENT_LIAB),
+    )
+
+    last_year_last_q_col = None
     for year_num, (year_index, quarters) in enumerate(annual_buckets.items()):
         col = _annual_col_letter(year_num)
         ws[f"{col}{ROW_YEAR_LABEL}"] = f"Yr {year_num + 1}"
 
         q_cols = [_quarterly_source_col(timeline, q) for q in quarters]
         first_q_col, last_q_col = q_cols[0], q_cols[-1]
+        last_year_last_q_col = last_q_col
 
-        for row, src_row, is_sum in (
-            (ROW_REVENUE, fsq.ROW_REVENUE, True),
-            (ROW_EBITDA, fsq.ROW_EBITDA, True),
-            (ROW_NET_INCOME, fsq.ROW_NET_INCOME, True),
-            (ROW_CASH_CLOSING, fsq.ROW_BS_CASH, False),
-            (ROW_DEBT_CLOSING, fsq.ROW_BS_DEBT, False),
-            (ROW_TOTAL_EQUITY_CLOSING, fsq.ROW_BS_TOTAL_EQUITY, False),
-        ):
-            cell = ws[f"{col}{row}"]
-            if is_sum:
-                cell.value = f"=SUM(FS_Quarterly!{first_q_col}{src_row}:{last_q_col}{src_row})"
-            else:
-                cell.value = f"=FS_Quarterly!{last_q_col}{src_row}"
+        for dst_row, src_row in flow_rows:
+            cell = ws[f"{col}{dst_row}"]
+            cell.value = f"=SUM(FS_Quarterly!{first_q_col}{src_row}:{last_q_col}{src_row})"
             cell.font = Font(color=COLOR_LINK)
             cell.number_format = "#,##0"
+
+        for dst_row, src_row in stock_rows:
+            cell = ws[f"{col}{dst_row}"]
+            cell.value = f"=FS_Quarterly!{last_q_col}{src_row}"
+            cell.font = Font(color=COLOR_LINK)
+            cell.number_format = "#,##0"
+
+        # Opening total cash: start-of-year, i.e. FS_Quarterly's own opening figure for
+        # this year's first quarter — not last year's closing (same value, but this reads
+        # the source directly rather than re-deriving it from the prior annual column).
+        opening_cell = ws[f"{col}{ROW_OPENING_TOTAL_CASH}"]
+        opening_cell.value = f"=FS_Quarterly!{first_q_col}{fsq.ROW_OPENING_TOTAL_CASH}"
+        opening_cell.font = Font(color=COLOR_LINK)
+        opening_cell.number_format = "#,##0"
+
+        less_dsra = ws[f"{col}{ROW_CF_LESS_DSRA}"]
+        less_dsra.value = f"=-{col}{ROW_BS_DSRA}"
+        less_dsra.font = Font(color=COLOR_FORMULA)
+        less_dsra.number_format = "#,##0"
+
+        less_mra = ws[f"{col}{ROW_CF_LESS_MRA}"]
+        less_mra.value = f"=-{col}{ROW_BS_MRA}"
+        less_mra.font = Font(color=COLOR_FORMULA)
+        less_mra.number_format = "#,##0"
+
+        check_direct = ws[f"{col}{ROW_CHECK_DIRECT_TIES_INDIRECT}"]
+        check_direct.value = f"=IF(ROUND({col}{ROW_CFO_DIRECT}-{col}{ROW_CFO},2)=0,1,0)"
+        check_direct.font = Font(color=COLOR_FORMULA)
+
+        check_a_minus_l = ws[f"{col}{ROW_BS_CHECK_A_MINUS_L}"]
+        check_a_minus_l.value = f"={col}{ROW_BS_TOTAL_ASSETS}-{col}{ROW_BS_TOTAL_LIABILITIES}"
+        check_a_minus_l.font = Font(color=COLOR_FORMULA)
+        check_a_minus_l.number_format = "#,##0"
+
+    first_col = _annual_col_letter(0)
+    last_col = _annual_col_letter(n_years - 1)
+
+    bs_check = ws[f"{last_col}{ROW_CHECK_BS_BALANCES_COUNT}"]
+    bs_check.value = (
+        f"=SUMPRODUCT(--(ROUND({first_col}{ROW_BS_TOTAL_ASSETS}:{last_col}{ROW_BS_TOTAL_ASSETS}"
+        f"-{first_col}{ROW_BS_TOTAL_LIAB_EQUITY}:{last_col}{ROW_BS_TOTAL_LIAB_EQUITY},2)<>0))"
+    )
+    bs_check.font = Font(color=COLOR_FORMULA)
+
+    # Independent tie-out at the final year-end only: FS_Annual's own closing cash against
+    # Calc_CFADS' buffer, the waterfall's own derivation — same check FS_Quarterly runs
+    # every quarter, confirmed once more here at annual granularity.
+    cash_tie = ws[f"{last_col}{ROW_CHECK_CASH_TIES_BUFFER}"]
+    cash_tie.value = (
+        f"=IF(ROUND({last_col}{ROW_CLOSING_CASH}-Calc_CFADS!{last_year_last_q_col}"
+        f"{cfads.ROW_BUFFER_CLOSING},2)=0,1,0)"
+    )
+    cash_tie.font = Font(color=COLOR_FORMULA)
+
+    direct_tie_count = ws[f"{last_col}{ROW_CHECK_DIRECT_TIES_INDIRECT_COUNT}"]
+    direct_tie_count.value = (
+        f"=SUMPRODUCT(--({first_col}{ROW_CHECK_DIRECT_TIES_INDIRECT}:"
+        f"{last_col}{ROW_CHECK_DIRECT_TIES_INDIRECT}=0))"
+    )
+    direct_tie_count.font = Font(color=COLOR_FORMULA)
 
     _build_xirr_block(ws, wb, timeline)
 
@@ -137,8 +394,11 @@ def build_fs_annual(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) -> 
 
     _build_construction_section(ws, timeline)
 
-    _add_named_range(wb, "FSA_PIRR", "FS_Annual", "A19")
-    _add_named_range(wb, "FSA_EIRR", "FS_Annual", "A21")
+    _add_named_range(wb, "FSA_PIRR", "FS_Annual", f"A{ROW_PIRR_VALUE}")
+    _add_named_range(wb, "FSA_EIRR", "FS_Annual", f"A{ROW_EIRR_VALUE}")
+
+    ws.freeze_panes = ws.cell(row=ROW_PNL_HEADER, column=FIRST_DATA_COL)
+    ws.column_dimensions["A"].width = 62
 
     return ws
 
@@ -343,6 +603,23 @@ def _operations_only_annual_buckets(timeline: Timeline) -> dict:
 def _quarterly_source_col(timeline: Timeline, period) -> str:
     idx = timeline.operations_quarters.index(period)
     return openpyxl.utils.get_column_letter(FIRST_DATA_COL + idx)
+
+
+def _label(ws: Worksheet, row: int, label: str) -> None:
+    ws.cell(row=row, column=1, value=label)
+
+
+def _bold_label(ws: Worksheet, row: int, label: str) -> None:
+    ws.cell(row=row, column=1, value=label).font = Font(bold=True)
+
+
+def _sub_label(ws: Worksheet, row: int, label: str) -> None:
+    ws.cell(row=row, column=1, value=label).font = Font(italic=True)
+
+
+def _section_header(ws: Worksheet, row: int, title: str) -> None:
+    cell = ws.cell(row=row, column=1, value=title)
+    cell.font = Font(bold=True, size=11, underline="single")
 
 
 def _add_named_range(wb: Workbook, name: str, sheet: str, cell: str) -> None:

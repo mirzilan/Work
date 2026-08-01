@@ -111,8 +111,11 @@ def build_valuation_selldown(wb: Workbook, timeline: Timeline) -> Worksheet:
         price_cell.font = Font(color=COLOR_FORMULA)
         price_cell.number_format = "#,##0"
 
+        # FS_Annual's Debt-Closing row is populated on year-index columns (0..n_years-1),
+        # not the whole-of-life period-index columns the XIRR helper block above uses —
+        # reading it at exit_col_index (a period index) was pulling a blank/wrong cell.
         debt_cell = ws[f"{col}{ROW_DEBT_OUTSTANDING}"]
-        debt_cell.value = f"=FS_Annual!{_annual_col_letter(exit_col_index)}{fsa.ROW_DEBT_CLOSING}"
+        debt_cell.value = f"=FS_Annual!{_annual_col_letter(year_num)}{fsa.ROW_DEBT_CLOSING}"
         debt_cell.font = Font(color=COLOR_LINK)
         debt_cell.number_format = "#,##0"
 

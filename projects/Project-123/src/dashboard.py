@@ -189,11 +189,14 @@ def _build_charts(ws: Worksheet, timeline: Timeline) -> None:
     # same bucket count fs_annual.py itself used to lay the columns out.
     n_annual_years = len(fsa._operations_only_annual_buckets(timeline))
     last_col_idx = 3 + n_annual_years - 1  # FIRST_DATA_COL (col C = 3) through the final year
-    cash_data = Reference(fsa_ws, min_col=1, max_col=last_col_idx,
-                          min_row=fsa.ROW_REVENUE, max_row=fsa.ROW_NET_INCOME)
+    # Revenue/EBITDA/Net Income are no longer contiguous rows on FS_Annual now that the
+    # full P&L sits between them, so each series is added individually by row rather than
+    # relying on a single min_row:max_row block spanning rows that happen to be adjacent.
+    for row in (fsa.ROW_REVENUE, fsa.ROW_EBITDA, fsa.ROW_NET_INCOME):
+        series_ref = Reference(fsa_ws, min_col=1, max_col=last_col_idx, min_row=row, max_row=row)
+        profile_chart.add_data(series_ref, titles_from_data=True, from_rows=True)
     cash_cats = Reference(fsa_ws, min_col=3, max_col=last_col_idx,
                           min_row=fsa.ROW_YEAR_LABEL, max_row=fsa.ROW_YEAR_LABEL)
-    profile_chart.add_data(cash_data, titles_from_data=True, from_rows=True)
     profile_chart.set_categories(cash_cats)
     ws.add_chart(profile_chart, f"J{ROW_CHART_ANCHOR}")
 

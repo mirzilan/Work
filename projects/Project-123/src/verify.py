@@ -126,6 +126,7 @@ def _headline_refs():
     import calc_financing_cons as fin_cons
     import calc_financing_ops as fin_ops
     import cover
+    import fs_annual as fsa
     import fs_quarterly as fsq
     from workbook_builder import col_letter
 
@@ -142,10 +143,10 @@ def _headline_refs():
         ("MRA balance Q1", "Calc_CFADS", f"{q1}{cfads.ROW_MRA_BALANCE}", ",.0f"),
         ("Cash buffer, final Q", "Calc_CFADS", f"{ops}{cfads.ROW_BUFFER_CLOSING}", ",.0f"),
         ("Equity injections, total", "Calc_CFADS", f"{ops}{cfads.ROW_CHECK_EQUITY_INJECTIONS}", ",.0f"),
-        ("PIRR", "FS_Annual", "A19", ".4%"),
-        ("EIRR", "FS_Annual", "A21", ".4%"),
+        ("PIRR", "FS_Annual", f"A{fsa.ROW_PIRR_VALUE}", ".4%"),
+        ("EIRR", "FS_Annual", f"A{fsa.ROW_EIRR_VALUE}", ".4%"),
         ("Closing cash, final Q", "FS_Quarterly", f"{ops}{fsq.ROW_CLOSING_CASH}", ",.2f"),
-        ("Closing debt, final Q", "FS_Quarterly", f"{ops}{fsq.ROW_BS_DEBT}", ",.2f"),
+        ("Closing debt, final Q", "FS_Quarterly", f"{ops}{fsq.ROW_BS_TOTAL_LIABILITIES}", ",.2f"),
         ("Closing PP&E, final Q", "FS_Quarterly", f"{ops}{fsq.ROW_BS_PPE_NET}", ",.0f"),
     ]
 
