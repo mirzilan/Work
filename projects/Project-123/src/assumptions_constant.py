@@ -28,22 +28,22 @@ SCENARIO_NAMES = [
 # (label, number_format, base, upside, downside)
 # Scenarios 4-10 are seeded with the base values as editable placeholders.
 DRIVERS = [
-    ("Total Capex ($)", "#,##0", 100_000_000.0, 95_000_000.0, 110_000_000.0),
-    ("Gearing (Debt % of TPC)", "0.00%", 0.70, 0.75, 0.65),
-    ("Interest Rate (Annual)", "0.00%", 0.06, 0.055, 0.07),
-    ("Debt Tenor (Years)", "0", 15, 17, 12),
-    ("Target DSCR", "0.00x", 1.30, 1.25, 1.40),
-    ("Annual Revenue ($)", "#,##0", 15_000_000.0, 18_000_000.0, 12_000_000.0),
-    ("Opex % of Revenue", "0.00%", 0.30, 0.27, 0.35),
+    ("Total Capex ($)", "#,##0", 120_000_000.0, 110_000_000.0, 135_000_000.0),
+    ("Gearing (Debt % of TPC)", "0.00%", 0.75, 0.80, 0.65),
+    ("Interest Rate (Annual)", "0.00%", 0.055, 0.050, 0.065),
+    ("Debt Tenor (Years)", "0", 18, 20, 15),
+    ("Target DSCR", "0.00x", 1.30, 1.20, 1.45),
+    ("Annual Revenue ($)", "#,##0", 16_500_000.0, 19_000_000.0, 13_500_000.0),
+    ("Opex % of Revenue", "0.00%", 0.22, 0.19, 0.27),
     ("Tax Rate", "0.00%", 0.25, 0.25, 0.25),
-    ("Useful Life (Years)", "0", 20, 20, 20),
-    ("Max Gearing (cap)", "0.00%", 0.85, 0.85, 0.85),
-    ("Escalation Factor 1 (Annual %)", "0.00%", 0.0, 0.0, 0.0),
-    ("Escalation Factor 2 (Annual %)", "0.00%", 0.0, 0.0, 0.0),
+    ("Useful Life (Years)", "0", 25, 27, 22),
+    ("Max Gearing (cap)", "0.00%", 0.80, 0.85, 0.75),
+    ("Escalation Factor 1 (Annual %)", "0.00%", 0.020, 0.025, 0.010),
+    ("Escalation Factor 2 (Annual %)", "0.00%", 0.025, 0.020, 0.035),
     ("Escalation Factor 3 (Annual %)", "0.00%", 0.025, 0.020, 0.040),
     ("Escalation Factor 4 (Annual %)", "0.00%", 0.030, 0.025, 0.045),
     ("Routine Maint Capex (% of Revenue)", "0.00%", 0.015, 0.012, 0.020),
-    ("DSRA LC Fee (% p.a. on requirement)", "0.00%", 0.015, 0.015, 0.020),
+    ("DSRA LC Fee (% p.a. on requirement)", "0.00%", 0.0125, 0.0100, 0.0175),
 ]
 
 # Row offsets so other modules can reference a driver without hardcoding row numbers.
