@@ -60,6 +60,7 @@ def build_workbook(inputs: ProjectInputs, timeline: Timeline, output_path: str,
     from fs_annual import build_fs_annual
     from valuation_selldown import build_valuation_selldown
     from batch_results import build_batch_results
+    from stress_test import build_stress_test
     from check_control import build_check_control
     from dashboard import build_dashboard
 
@@ -85,6 +86,7 @@ def build_workbook(inputs: ProjectInputs, timeline: Timeline, output_path: str,
     build_fs_annual(wb, timeline, inputs)
     build_valuation_selldown(wb, timeline)
     build_batch_results(wb)
+    build_stress_test(wb)
     build_check_control(wb, timeline)
     build_dashboard(wb, timeline)  # index 0: opens here — must be built last, once everything it links to exists
     wb.save(output_path)

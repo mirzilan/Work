@@ -8,8 +8,8 @@ Reference document for the bankable project finance model engine. Check every bu
 
 | Phase | Scope |
 |---|---|
-| **1 (current)** | Core engine skeleton — dual timeline, 3-statements, capex/revenue/opex drivers, debt sculpting, checks |
-| 2 | Body work & formatting — FAST/Corality styling, stress testing, scenario highlight (conditional formatting) |
+| 1 | Core engine skeleton — dual timeline, 3-statements, capex/revenue/opex drivers, debt sculpting, checks — ✅ done |
+| **2 (current)** | Body work & formatting — FAST/Corality styling, stress testing (✅ done — `Stress_Test` sheet, one-at-a-time sensitivity on the active scenario), scenario highlight (✅ done — Dashboard best/worst EIRR conditional formatting); FAST/Corality styling pass still outstanding |
 | 3 | Sector plug-ins — H2/NH3, CCGT, Solar+BESS, Commodity Trading (swap `Calc_Revenue_Opex` internals only) |
 | 4 | Front-end UI |
 

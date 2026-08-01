@@ -229,6 +229,20 @@ def _build_scenario_comparison(ws: Worksheet) -> None:
     ws.column_dimensions["C"].width = 12
     ws.column_dimensions["D"].width = 16
 
+    # Scenario highlight (Phase 2): flag the best and worst EIRR across the 10 scenarios
+    # so the comparison table reads at a glance, not just as a list of numbers.
+    last_scenario_row = ROW_FIRST_SCENARIO + const.N_SCENARIOS - 1
+    eirr_range = f"C{ROW_FIRST_SCENARIO}:C{last_scenario_row}"
+    eirr_abs_range = f"$C${ROW_FIRST_SCENARIO}:$C${last_scenario_row}"
+    ws.conditional_formatting.add(
+        eirr_range,
+        FormulaRule(formula=[f"C{ROW_FIRST_SCENARIO}=MAX({eirr_abs_range})"], fill=FILL_GREEN),
+    )
+    ws.conditional_formatting.add(
+        eirr_range,
+        FormulaRule(formula=[f"C{ROW_FIRST_SCENARIO}=MIN({eirr_abs_range})"], fill=FILL_RED),
+    )
+
 
 def _col_letter(n: int) -> str:
     import openpyxl.utils

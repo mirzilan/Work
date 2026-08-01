@@ -102,7 +102,7 @@ ROW_FRESHNESS_FLAG = ROW_FIRST_SNAPSHOT + len(TRACKED_INPUTS) + 1
 # it still exists in mod_SolveFreshness.bas and runs fine from the VBA macro list.
 ROW_BUTTON_SPEC_HEADER = 2
 ROW_FIRST_BUTTON_SPEC = 3
-N_BUTTON_SLOTS = 9  # 3 Tier 1 + gap + 1 Tier 2 + gap + 3 Tier 3 — matches len(BUTTON_SPECS) exactly
+N_BUTTON_SLOTS = 10  # 3 Tier 1 + gap + 2 Tier 2 + gap + 3 Tier 3 — matches len(BUTTON_SPECS) exactly
 COL_BUTTON_MACRO = 8   # column H
 COL_BUTTON_LABEL = 9   # column I
 
@@ -112,6 +112,7 @@ BUTTON_SPECS = [
     ("GoalSeekPIRR", "[Everyday] Goal Seek -> Target PIRR"),
     None,
     ("RunAllScenarios", "[Batch] Run All 10 Scenarios"),
+    ("RunStressTest", "[Batch] Run Stress Test"),
     None,
     ("SolveConstructionIDC", "[Debug] Solve Construction IDC"),
     ("SolveDebtSculpting", "[Debug] Solve Debt Sculpting"),
@@ -154,7 +155,7 @@ def build_cover(wb: Workbook, n_construction_months: int = 24,
 
     ws["A11"] = (
         "Buttons (top-right) are tagged by tier: [Everyday] Solve All / Goal Seek EIRR / "
-        "Goal Seek PIRR -- gap -- [Batch] Run All 10 Scenarios -- gap -- "
+        "Goal Seek PIRR -- gap -- [Batch] Run All 10 Scenarios / Run Stress Test -- gap -- "
         "[Debug] the individual Loop 1/Loop 2 solves, [Recovery] Reset Staged Values."
     )
     ws["A11"].font = Font(italic=True)

@@ -83,6 +83,7 @@ def build_assumptions_constant(wb: Workbook, inputs: ProjectInputs) -> Worksheet
     name_active = ws[f"{COL_ACTIVE}{ROW_SCENARIO_NAME}"]
     name_active.value = _index_formula(ROW_SCENARIO_NAME)
     name_active.font = Font(color=COLOR_FORMULA, bold=True)
+    _name(wb, "ActiveScenarioName", "Assumptions_Constant", f"{COL_ACTIVE}{ROW_SCENARIO_NAME}")
 
     for s, name in enumerate(SCENARIO_NAMES):
         col = get_column_letter(FIRST_SCENARIO_COL + s)
