@@ -89,6 +89,7 @@ def build_workbook(inputs: ProjectInputs, timeline: Timeline, output_path: str,
     from stress_test import build_stress_test
     from check_control import build_check_control
     from dashboard import build_dashboard
+    from legend import build_legend
 
 
     n_quarters = len(timeline.operations_quarters)
@@ -114,6 +115,7 @@ def build_workbook(inputs: ProjectInputs, timeline: Timeline, output_path: str,
     build_batch_results(wb)
     build_stress_test(wb)
     build_check_control(wb, timeline)
-    build_dashboard(wb, timeline)  # index 0: opens here — must be built last, once everything it links to exists
+    build_dashboard(wb, timeline)  # must be built last, once everything it links to exists
+    build_legend(wb)  # index 0: opens here — a read-only "how to read this model" tab
     wb.save(output_path)
     return wb

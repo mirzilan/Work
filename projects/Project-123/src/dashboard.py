@@ -50,7 +50,7 @@ FILL_AMBER = PatternFill(start_color="FFFFEB9C", end_color="FFFFEB9C", fill_type
 
 
 def build_dashboard(wb: Workbook, timeline: Timeline) -> Worksheet:
-    ws = wb.create_sheet("Dashboard", 0)  # index 0: opens here
+    ws = wb.create_sheet("Dashboard", 0)  # built at index 0; Legend is inserted ahead of it afterward
     ws.sheet_properties.tabColor = TAB_COLOR_OUTPUT
 
     ws["A1"] = "Project 123 — Dashboard"
@@ -106,6 +106,10 @@ def build_dashboard(wb: Workbook, timeline: Timeline) -> Worksheet:
 
     ws.column_dimensions["A"].width = 24
     ws.column_dimensions["B"].width = 16
+
+    # Status/Returns flags stay visible below this no matter how far the user scrolls
+    # into the scenario table, Sources & Uses or charts.
+    ws.freeze_panes = "A7"
 
     return ws
 

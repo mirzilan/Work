@@ -153,6 +153,10 @@ def build_cover(wb: Workbook, n_construction_months: int = 24,
     status_cell.value = f"=Check_Control!B{check_control.ROW_MASTER_FLAG}"
     status_cell.font = Font(bold=True, size=14)
 
+    # Title, solve settings and Model Status stay visible below this no matter how far
+    # the user scrolls down into the goal-seek/live-output/snapshot sections.
+    ws.freeze_panes = "A9"
+
     ws["A11"] = (
         "Buttons (top-right) are tagged by tier: [Everyday] Solve All / Goal Seek EIRR / "
         "Goal Seek PIRR -- gap -- [Batch] Run All 10 Scenarios / Run Stress Test -- gap -- "

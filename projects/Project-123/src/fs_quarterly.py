@@ -2,6 +2,7 @@ from openpyxl.styles import Font
 from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.workbook import Workbook
 
+import assumptions_constant as const
 import calc_capex as capex
 import calc_cfads as cfads
 import calc_financing_cons as fin_cons
@@ -26,55 +27,61 @@ from workbook_builder import (
     style_section_header_row,
 )
 
-ROW_DATE_HEADER = 2
-ROW_QUARTER_INDEX = 3
+# Flags block — frozen with the timeline below it, so scenario/status context stays
+# visible no matter how far the user scrolls. See Legend for what each flag means.
+ROW_FLAG_ACTIVE_SCENARIO = 2
+ROW_FLAG_MODEL_STATUS = 3
+ROW_FLAG_SOLVE_FRESHNESS = 4
+
+ROW_DATE_HEADER = 7
+ROW_QUARTER_INDEX = 8
 
 # ---------------------------------------------------------------------------------
 # P&L
 # ---------------------------------------------------------------------------------
-ROW_PNL_HEADER = 5
-ROW_REVENUE = 6
-ROW_OPEX = 7
-ROW_EBITDA = 8
-ROW_DEPRECIATION = 9
-ROW_EBIT = 10
-ROW_INTEREST_EXPENSE = 11
-ROW_EBT = 12
-ROW_TAX = 13
-ROW_LC_FEE = 14  # below tax: non-deductible, see the note in calc_tax.py
-ROW_NET_INCOME = 15
+ROW_PNL_HEADER = 10
+ROW_REVENUE = 11
+ROW_OPEX = 12
+ROW_EBITDA = 13
+ROW_DEPRECIATION = 14
+ROW_EBIT = 15
+ROW_INTEREST_EXPENSE = 16
+ROW_EBT = 17
+ROW_TAX = 18
+ROW_LC_FEE = 19  # below tax: non-deductible, see the note in calc_tax.py
+ROW_NET_INCOME = 20
 
 # ---------------------------------------------------------------------------------
 # BALANCE SHEET — classified (current/non-current), A = L + E displayed explicitly
 # ---------------------------------------------------------------------------------
-ROW_BS_HEADER = 17
-ROW_BS_ASSETS_HEADER = 18
-ROW_BS_CURRENT_ASSETS_HEADER = 19
-ROW_BS_CASH = 20
-ROW_BS_TOTAL_CURRENT_ASSETS = 21
-ROW_BS_NONCURRENT_ASSETS_HEADER = 22
-ROW_BS_DSRA = 23
-ROW_BS_MRA = 24
-ROW_BS_PPE_NET = 25
-ROW_BS_TOTAL_NONCURRENT_ASSETS = 26
-ROW_BS_TOTAL_ASSETS = 27
+ROW_BS_HEADER = 22
+ROW_BS_ASSETS_HEADER = 23
+ROW_BS_CURRENT_ASSETS_HEADER = 24
+ROW_BS_CASH = 25
+ROW_BS_TOTAL_CURRENT_ASSETS = 26
+ROW_BS_NONCURRENT_ASSETS_HEADER = 27
+ROW_BS_DSRA = 28
+ROW_BS_MRA = 29
+ROW_BS_PPE_NET = 30
+ROW_BS_TOTAL_NONCURRENT_ASSETS = 31
+ROW_BS_TOTAL_ASSETS = 32
 
-ROW_BS_LIABILITIES_HEADER = 29
-ROW_BS_CURRENT_LIAB_HEADER = 30
-ROW_BS_DEBT_CURRENT = 31  # portion due within the next 4 quarters
-ROW_BS_TOTAL_CURRENT_LIAB = 32
-ROW_BS_NONCURRENT_LIAB_HEADER = 33
-ROW_BS_DEBT_NONCURRENT = 34
-ROW_BS_TOTAL_NONCURRENT_LIAB = 35
-ROW_BS_TOTAL_LIABILITIES = 36
+ROW_BS_LIABILITIES_HEADER = 34
+ROW_BS_CURRENT_LIAB_HEADER = 35
+ROW_BS_DEBT_CURRENT = 36  # portion due within the next 4 quarters
+ROW_BS_TOTAL_CURRENT_LIAB = 37
+ROW_BS_NONCURRENT_LIAB_HEADER = 38
+ROW_BS_DEBT_NONCURRENT = 39
+ROW_BS_TOTAL_NONCURRENT_LIAB = 40
+ROW_BS_TOTAL_LIABILITIES = 41
 
-ROW_BS_EQUITY_HEADER = 38
-ROW_BS_PAID_IN_CAPITAL = 39
-ROW_BS_RETAINED_EARNINGS = 40
-ROW_BS_TOTAL_EQUITY = 41
+ROW_BS_EQUITY_HEADER = 43
+ROW_BS_PAID_IN_CAPITAL = 44
+ROW_BS_RETAINED_EARNINGS = 45
+ROW_BS_TOTAL_EQUITY = 46
 
-ROW_BS_TOTAL_LIAB_EQUITY = 43
-ROW_BS_CHECK_A_MINUS_L = 44  # displays Assets - Liabilities for a visual E = A - L proof
+ROW_BS_TOTAL_LIAB_EQUITY = 48
+ROW_BS_CHECK_A_MINUS_L = 49  # displays Assets - Liabilities for a visual E = A - L proof
 
 # ---------------------------------------------------------------------------------
 # CASH FLOW STATEMENT — indirect method. DSRA/MRA reserve funding is NOT shown within
@@ -85,41 +92,41 @@ ROW_BS_CHECK_A_MINUS_L = 44  # displays Assets - Liabilities for a visual E = A 
 # cash as a schedule beneath it — the "adjustment for restricted cash" sits below the
 # main statement rather than being netted into CFF.
 # ---------------------------------------------------------------------------------
-ROW_CF_HEADER = 46
-ROW_CFO_NI = 47
-ROW_CFO_ADDBACK_DEPR = 48
-ROW_CFO_WC_CHANGE = 49  # placeholder — see note at the cell itself
-ROW_CFO = 50
-ROW_CFI = 51
-ROW_CFF_PRINCIPAL = 52
-ROW_CFF_DIVIDENDS = 53
-ROW_CFF_EQUITY_INJECTION = 54
-ROW_CFF = 55
-ROW_NET_CHANGE_TOTAL_CASH = 56
-ROW_OPENING_TOTAL_CASH = 57
-ROW_CLOSING_TOTAL_CASH = 58
+ROW_CF_HEADER = 51
+ROW_CFO_NI = 52
+ROW_CFO_ADDBACK_DEPR = 53
+ROW_CFO_WC_CHANGE = 54  # placeholder — see note at the cell itself
+ROW_CFO = 55
+ROW_CFI = 56
+ROW_CFF_PRINCIPAL = 57
+ROW_CFF_DIVIDENDS = 58
+ROW_CFF_EQUITY_INJECTION = 59
+ROW_CFF = 60
+ROW_NET_CHANGE_TOTAL_CASH = 61
+ROW_OPENING_TOTAL_CASH = 62
+ROW_CLOSING_TOTAL_CASH = 63
 
-ROW_CF_RESTRICTED_HEADER = 60
-ROW_CF_LESS_DSRA = 61
-ROW_CF_LESS_MRA = 62
-ROW_CLOSING_CASH = 63  # closing UNRESTRICTED cash — this is what feeds the BS cash line
+ROW_CF_RESTRICTED_HEADER = 65
+ROW_CF_LESS_DSRA = 66
+ROW_CF_LESS_MRA = 67
+ROW_CLOSING_CASH = 68  # closing UNRESTRICTED cash — this is what feeds the BS cash line
 
 # Direct method — cross-check on CFO only (no AR/AP/inventory anywhere in the model, so
 # cash receipts/payments equal the P&L lines exactly; a mismatch means the indirect build
 # or a source link is wrong, not a timing difference).
-ROW_CFD_HEADER = 65
-ROW_CFD_RECEIPTS = 66
-ROW_CFD_OPEX_PAID = 67
-ROW_CFD_INTEREST_PAID = 68
-ROW_CFD_TAX_PAID = 69
-ROW_CFD_LC_FEE_PAID = 70
-ROW_CFO_DIRECT = 71
-ROW_CHECK_DIRECT_TIES_INDIRECT = 72
+ROW_CFD_HEADER = 70
+ROW_CFD_RECEIPTS = 71
+ROW_CFD_OPEX_PAID = 72
+ROW_CFD_INTEREST_PAID = 73
+ROW_CFD_TAX_PAID = 74
+ROW_CFD_LC_FEE_PAID = 75
+ROW_CFO_DIRECT = 76
+ROW_CHECK_DIRECT_TIES_INDIRECT = 77
 
-ROW_CHECK_HEADER = 74
-ROW_CHECK_BS_BALANCES_COUNT = 75         # count of quarters where the BS does not balance
-ROW_CHECK_CASH_TIES_BUFFER = 76          # closing unrestricted cash ties to Calc_CFADS' buffer
-ROW_CHECK_DIRECT_TIES_INDIRECT_COUNT = 77  # count of quarters where direct CFO != indirect CFO
+ROW_CHECK_HEADER = 79
+ROW_CHECK_BS_BALANCES_COUNT = 80         # count of quarters where the BS does not balance
+ROW_CHECK_CASH_TIES_BUFFER = 81          # closing unrestricted cash ties to Calc_CFADS' buffer
+ROW_CHECK_DIRECT_TIES_INDIRECT_COUNT = 82  # count of quarters where direct CFO != indirect CFO
 
 # ---------------------------------------------------------------------------------
 # FREE CASH FLOW — two independently-derived views of FCFF and FCFE, cross-checked.
@@ -145,14 +152,14 @@ ROW_CHECK_DIRECT_TIES_INDIRECT_COUNT = 77  # count of quarters where direct CFO 
 # from the buffer roll-forward (Distribution - Injection = CAFD - Change in Buffer, summed
 # across all quarters, where the buffer starts at its Financial-Close value and ends at 0).
 # ---------------------------------------------------------------------------------
-ROW_FCF_HEADER = 79
-ROW_FCFF_CF_METHOD = 80
-ROW_FCFF_CFADS_METHOD = 81
-ROW_CHECK_FCFF_METHODS_TIE_COUNT = 82
+ROW_FCF_HEADER = 84
+ROW_FCFF_CF_METHOD = 85
+ROW_FCFF_CFADS_METHOD = 86
+ROW_CHECK_FCFF_METHODS_TIE_COUNT = 87
 
-ROW_FCFE_CF_METHOD = 84
-ROW_FCFE_DIVIDEND_METHOD = 85
-ROW_CHECK_FCFE_LIFETIME_TIE = 86
+ROW_FCFE_CF_METHOD = 89
+ROW_FCFE_DIVIDEND_METHOD = 90
+ROW_CHECK_FCFE_LIFETIME_TIE = 91
 
 
 def build_fs_quarterly(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) -> Worksheet:
@@ -161,6 +168,8 @@ def build_fs_quarterly(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) 
 
     ws["A1"] = "FS_Quarterly — P&L / Balance Sheet / Cash Flow (reserves as restricted cash, 100% FCFE payout)"
     ws["A1"].font = Font(bold=True, size=12)
+
+    _build_flags_block(ws)
 
     _label(ws, ROW_DATE_HEADER, "Period End Date")
     _label(ws, ROW_QUARTER_INDEX, "Operating Quarter #")
@@ -475,6 +484,30 @@ def _current_debt_formula(i: int, n_quarters: int, col: str, closing_bal_formula
         f"=MIN(SUM(Calc_Financing_Ops!{start_col}{fin_ops.ROW_PRINCIPAL}:"
         f"Calc_Financing_Ops!{end_col}{fin_ops.ROW_PRINCIPAL}),{closing_bal_formula})"
     )
+
+
+def _build_flags_block(ws: Worksheet) -> None:
+    """Active Scenario / Model Status / Solve Freshness — same three flags as Dashboard,
+    repeated here since this sheet is read on its own often enough that the reader
+    shouldn't have to tab back to Dashboard to know which scenario or state they're in."""
+    # Local import: Check_Control aggregates via `import fs_quarterly`, so importing it
+    # back at module level here would close the loop — same pattern cover.py already uses.
+    import check_control
+
+    _label(ws, ROW_FLAG_ACTIVE_SCENARIO, "Active Scenario")
+    scenario_cell = ws[f"B{ROW_FLAG_ACTIVE_SCENARIO}"]
+    scenario_cell.value = f"=ActiveScenario&\" - \"&Assumptions_Constant!$B${const.ROW_SCENARIO_NAME}"
+    scenario_cell.font = Font(color=COLOR_LINK, bold=True)
+
+    _label(ws, ROW_FLAG_MODEL_STATUS, "Model Status")
+    status_cell = ws[f"B{ROW_FLAG_MODEL_STATUS}"]
+    status_cell.value = f"=Check_Control!B{check_control.ROW_MASTER_FLAG}"
+    status_cell.font = Font(color=COLOR_LINK, bold=True)
+
+    _label(ws, ROW_FLAG_SOLVE_FRESHNESS, "Solve Freshness")
+    freshness_cell = ws[f"B{ROW_FLAG_SOLVE_FRESHNESS}"]
+    freshness_cell.value = "=SolveStatus"
+    freshness_cell.font = Font(color=COLOR_LINK, bold=True)
 
 
 def _label(ws: Worksheet, row: int, label: str) -> None:
