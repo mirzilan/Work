@@ -1,5 +1,7 @@
 import openpyxl
 from openpyxl.workbook import Workbook
+from openpyxl.styles import Border, PatternFill, Side
+from openpyxl.worksheet.worksheet import Worksheet
 
 from inputs import ProjectInputs
 from timeline import Timeline
@@ -17,6 +19,30 @@ TAB_COLOR_INPUT = "0000FF"
 TAB_COLOR_CALC = "808080"
 TAB_COLOR_OUTPUT = "00B050"
 TAB_COLOR_CHECK = "FF0000"
+
+# FAST/Corality subtotal convention: a single rule above a subtotal, a double rule below
+# a grand total (the "final answer" on a statement — Net Income, Total Assets, etc.).
+_BORDER_SUBTOTAL = Border(top=Side(style="thin"))
+_BORDER_GRAND_TOTAL = Border(top=Side(style="thin"), bottom=Side(style="double"))
+FILL_SECTION_HEADER = PatternFill(start_color="FFF2F2F2", end_color="FFF2F2F2", fill_type="solid")
+
+
+def style_total_row(ws: Worksheet, row: int, first_col_idx: int, last_col_idx: int,
+                    grand: bool = False) -> None:
+    """Apply the FAST/Corality subtotal/grand-total border convention across a row's data
+    columns. `grand=True` adds the double-rule bottom edge reserved for a statement's
+    final answer (Net Income, Total Assets, Closing Cash); everything else gets the
+    single top rule that marks an ordinary subtotal."""
+    border = _BORDER_GRAND_TOTAL if grand else _BORDER_SUBTOTAL
+    for col_idx in range(first_col_idx, last_col_idx + 1):
+        ws.cell(row=row, column=col_idx).border = border
+
+
+def style_section_header_row(ws: Worksheet, row: int, first_col_idx: int, last_col_idx: int) -> None:
+    """Light grey band across a section header's data columns, matching the label cell's
+    existing bold/underline styling in column A."""
+    for col_idx in range(first_col_idx, last_col_idx + 1):
+        ws.cell(row=row, column=col_idx).fill = FILL_SECTION_HEADER
 
 
 def new_workbook(template_path: str | None = None) -> Workbook:

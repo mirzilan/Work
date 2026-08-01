@@ -13,6 +13,8 @@ from workbook_builder import (
     COLOR_FORMULA,
     COLOR_LINK,
     TAB_COLOR_OUTPUT,
+    style_total_row,
+    style_section_header_row,
 )
 import openpyxl.utils
 
@@ -386,6 +388,21 @@ def build_fs_annual(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) -> 
     first_col = _annual_col_letter(0)
     last_col = _annual_col_letter(n_years - 1)
 
+    ann_first_col_idx = FIRST_DATA_COL
+    ann_last_col_idx = FIRST_DATA_COL + n_years - 1
+    for row in (
+        ROW_BS_TOTAL_CURRENT_ASSETS, ROW_BS_TOTAL_NONCURRENT_ASSETS,
+        ROW_BS_TOTAL_CURRENT_LIAB, ROW_BS_TOTAL_NONCURRENT_LIAB, ROW_BS_TOTAL_LIABILITIES,
+        ROW_BS_TOTAL_EQUITY, ROW_CFO, ROW_CFI, ROW_CFF, ROW_NET_CHANGE_TOTAL_CASH,
+        ROW_CLOSING_TOTAL_CASH, ROW_CFO_DIRECT,
+    ):
+        style_total_row(ws, row, ann_first_col_idx, ann_last_col_idx)
+    for row in (ROW_NET_INCOME, ROW_BS_TOTAL_ASSETS, ROW_BS_TOTAL_LIAB_EQUITY, ROW_CLOSING_CASH):
+        style_total_row(ws, row, ann_first_col_idx, ann_last_col_idx, grand=True)
+    for row in (ROW_PNL_HEADER, ROW_BS_HEADER, ROW_CF_HEADER, ROW_CF_RESTRICTED_HEADER,
+               ROW_CFD_HEADER, ROW_FCF_HEADER):
+        style_section_header_row(ws, row, ann_first_col_idx, ann_last_col_idx)
+
     bs_check = ws[f"{last_col}{ROW_CHECK_BS_BALANCES_COUNT}"]
     bs_check.value = (
         f"=SUMPRODUCT(--(ROUND({first_col}{ROW_BS_TOTAL_ASSETS}:{last_col}{ROW_BS_TOTAL_ASSETS}"
@@ -582,6 +599,13 @@ def _build_construction_section(ws: Worksheet, timeline: Timeline) -> None:
         liab_eq_cell.font = Font(color=COLOR_FORMULA)
         liab_eq_cell.number_format = "#,##0"
 
+    cons_first_col_idx = FIRST_DATA_COL
+    cons_last_col_idx = FIRST_DATA_COL + n_cons_years - 1
+    style_total_row(ws, ROW_CONS_BS_TOTAL_ASSETS, cons_first_col_idx, cons_last_col_idx, grand=True)
+    style_total_row(ws, ROW_CONS_BS_TOTAL_LIAB_EQUITY, cons_first_col_idx, cons_last_col_idx, grand=True)
+    style_total_row(ws, ROW_CONS_BS_TOTAL_EQUITY, cons_first_col_idx, cons_last_col_idx)
+    style_section_header_row(ws, ROW_CONS_BS_HEADER, cons_first_col_idx, cons_last_col_idx)
+
     first_cons_col = _annual_col_letter(0)
     last_cons_col = _annual_col_letter(n_cons_years - 1)
     cons_bs_check = ws[f"{last_cons_col}{ROW_CONS_CHECK_BS_BALANCES_COUNT}"]
@@ -641,6 +665,12 @@ def _build_construction_cash_flow(ws: Worksheet, timeline: Timeline) -> None:
         net_cell.value = f"={col}{ROW_CONS_CF_INVESTING}+{col}{ROW_CONS_CF_FINANCING}"
         net_cell.font = Font(color=COLOR_FORMULA, bold=True)
         net_cell.number_format = "#,##0"
+
+    cf_first_col_idx = FIRST_DATA_COL
+    cf_last_col_idx = FIRST_DATA_COL + n_cons - 1
+    style_total_row(ws, ROW_CONS_CF_FINANCING, cf_first_col_idx, cf_last_col_idx)
+    style_total_row(ws, ROW_CONS_CF_NET, cf_first_col_idx, cf_last_col_idx, grand=True)
+    style_section_header_row(ws, ROW_CONS_CF_HEADER, cf_first_col_idx, cf_last_col_idx)
 
     first_col = _xirr_col_letter(0)
     penultimate_col = _xirr_col_letter(n_cons - 2)

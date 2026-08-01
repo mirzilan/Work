@@ -22,6 +22,8 @@ from workbook_builder import (
     COLOR_LINK,
     TAB_COLOR_OUTPUT,
     col_letter,
+    style_total_row,
+    style_section_header_row,
 )
 
 ROW_DATE_HEADER = 2
@@ -382,6 +384,25 @@ def build_fs_quarterly(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) 
                  f"={col}{ROW_CFO}+{col}{ROW_CFI}-{col}{ROW_CFF_PRINCIPAL}"
                  f"-Calc_Financing_Ops!{col}{fin_ops.ROW_DSRA_FUNDING}-Calc_CFADS!{col}{cfads.ROW_MRA_FUNDING}")
         _link(ws, col, ROW_FCFE_DIVIDEND_METHOD, f"Calc_CFADS!{col}{cfads.ROW_FCFE}")
+
+    first_col_idx = FIRST_DATA_COL
+    last_col_idx = FIRST_DATA_COL + n_quarters - 1
+
+    # FAST/Corality subtotal convention: single rule above an ordinary subtotal, double
+    # rule below a statement's "final answer" (grand=True).
+    for row in (
+        ROW_BS_TOTAL_CURRENT_ASSETS, ROW_BS_TOTAL_NONCURRENT_ASSETS,
+        ROW_BS_TOTAL_CURRENT_LIAB, ROW_BS_TOTAL_NONCURRENT_LIAB, ROW_BS_TOTAL_LIABILITIES,
+        ROW_BS_TOTAL_EQUITY, ROW_CFO, ROW_CFI, ROW_CFF, ROW_NET_CHANGE_TOTAL_CASH,
+        ROW_CLOSING_TOTAL_CASH, ROW_CFO_DIRECT,
+    ):
+        style_total_row(ws, row, first_col_idx, last_col_idx)
+    for row in (ROW_NET_INCOME, ROW_BS_TOTAL_ASSETS, ROW_BS_TOTAL_LIAB_EQUITY, ROW_CLOSING_CASH):
+        style_total_row(ws, row, first_col_idx, last_col_idx, grand=True)
+
+    for row in (ROW_PNL_HEADER, ROW_BS_HEADER, ROW_CF_HEADER, ROW_CF_RESTRICTED_HEADER,
+               ROW_CFD_HEADER, ROW_FCF_HEADER):
+        style_section_header_row(ws, row, first_col_idx, last_col_idx)
 
     first_col = col_letter(0)
 
