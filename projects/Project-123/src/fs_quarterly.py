@@ -119,6 +119,39 @@ ROW_CHECK_BS_BALANCES_COUNT = 75         # count of quarters where the BS does n
 ROW_CHECK_CASH_TIES_BUFFER = 76          # closing unrestricted cash ties to Calc_CFADS' buffer
 ROW_CHECK_DIRECT_TIES_INDIRECT_COUNT = 77  # count of quarters where direct CFO != indirect CFO
 
+# ---------------------------------------------------------------------------------
+# FREE CASH FLOW — two independently-derived views of FCFF and FCFE, cross-checked.
+#
+# FCFF: "Cash Flow Statement method" (CFO + CFI + Interest + LC Fee — un-levering the
+# built statement) vs "CFADS method" (CFADS - Maintenance Capex, linked from Calc_CFADS).
+# These are the same figure by algebraic identity (CFADS = EBITDA - Tax = NI + Depr +
+# Interest + LC Fee), so the check below expects an EXACT match every quarter — any gap
+# means a wiring error, not a timing difference.
+#
+# FCFE: "Cash Flow Statement method" (CFO + CFI - Principal - DSRA Funding - MRA Funding
+# — cash available to equity BEFORE the buffer/lock-up policy decides how much to actually
+# pay out) vs "Dividend method" (Distributions - Equity Injections, linked from
+# Calc_CFADS — the actual cash equity receives, and what the reported EIRR is built on).
+# These two do NOT tie quarter-by-quarter whenever the buffer is building, releasing, or a
+# DSCR lock-up blocks a distribution — that's the buffer smoothing timing, not a bug.
+#
+# Over the whole life they tie to exactly the Initial Cash Buffer funded at Financial
+# Close, not to zero: that buffer is funded once, outside CAFD entirely (it comes from the
+# construction-period Sources & Uses, not from any operating quarter's cash flow), then
+# drains out as part of the distribution once the buffer target is forced to zero in the
+# final quarter. So SUM(Distributions - Injections) = SUM(CAFD) + Initial Buffer — proven
+# from the buffer roll-forward (Distribution - Injection = CAFD - Change in Buffer, summed
+# across all quarters, where the buffer starts at its Financial-Close value and ends at 0).
+# ---------------------------------------------------------------------------------
+ROW_FCF_HEADER = 79
+ROW_FCFF_CF_METHOD = 80
+ROW_FCFF_CFADS_METHOD = 81
+ROW_CHECK_FCFF_METHODS_TIE_COUNT = 82
+
+ROW_FCFE_CF_METHOD = 84
+ROW_FCFE_DIVIDEND_METHOD = 85
+ROW_CHECK_FCFE_LIFETIME_TIE = 86
+
 
 def build_fs_quarterly(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) -> Worksheet:
     ws = wb.create_sheet("FS_Quarterly")
@@ -205,6 +238,20 @@ def build_fs_quarterly(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) 
     _label(ws, ROW_CHECK_BS_BALANCES_COUNT, "# of quarters where BS does not balance")
     _label(ws, ROW_CHECK_CASH_TIES_BUFFER, "Check: Closing cash ties to the Calc_CFADS buffer")
     _label(ws, ROW_CHECK_DIRECT_TIES_INDIRECT_COUNT, "# of quarters where Direct CFO != Indirect CFO")
+
+    _section_header(ws, ROW_FCF_HEADER, "FREE CASH FLOW — TWO VIEWS, CROSS-CHECKED")
+    _label(ws, ROW_FCFF_CF_METHOD, "FCFF ($) — Cash Flow Statement method = CFO + CFI + Interest + LC Fee")
+    _label(ws, ROW_FCFF_CFADS_METHOD,
+           "FCFF ($) — CFADS method (Calc_CFADS); used for reported PIRR")
+    _label(ws, ROW_CHECK_FCFF_METHODS_TIE_COUNT, "# of quarters where the two FCFF views differ (should be 0)")
+    _label(ws, ROW_FCFE_CF_METHOD,
+           "FCFE ($) — Cash Flow Statement method = CFO + CFI - Principal - DSRA Funding - MRA Funding "
+           "(pre-distribution-policy)")
+    _label(ws, ROW_FCFE_DIVIDEND_METHOD,
+           "FCFE ($) — Dividend method (Calc_CFADS); actual cash to/from equity, used for reported EIRR")
+    _label(ws, ROW_CHECK_FCFE_LIFETIME_TIE,
+           "Check: whole-of-life FCFE (Dividend Method) = whole-of-life FCFE (CF Method) + Initial Cash "
+           "Buffer — quarterly timing differs by design (buffer/lock-up); this identity must not")
 
     n_quarters = len(timeline.operations_quarters)
     last_cons_col = col_letter(len(timeline.construction_months) - 1)
@@ -327,6 +374,15 @@ def build_fs_quarterly(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) 
         _formula(ws, col, ROW_BS_CHECK_A_MINUS_L,
                  f"={col}{ROW_BS_TOTAL_ASSETS}-{col}{ROW_BS_TOTAL_LIABILITIES}")
 
+        # --- FCFF / FCFE: two views ---
+        _formula(ws, col, ROW_FCFF_CF_METHOD,
+                 f"={col}{ROW_CFO}+{col}{ROW_CFI}+{col}{ROW_INTEREST_EXPENSE}+{col}{ROW_LC_FEE}")
+        _link(ws, col, ROW_FCFF_CFADS_METHOD, f"Calc_CFADS!{col}{cfads.ROW_FCFF}")
+        _formula(ws, col, ROW_FCFE_CF_METHOD,
+                 f"={col}{ROW_CFO}+{col}{ROW_CFI}-{col}{ROW_CFF_PRINCIPAL}"
+                 f"-Calc_Financing_Ops!{col}{fin_ops.ROW_DSRA_FUNDING}-Calc_CFADS!{col}{cfads.ROW_MRA_FUNDING}")
+        _link(ws, col, ROW_FCFE_DIVIDEND_METHOD, f"Calc_CFADS!{col}{cfads.ROW_FCFE}")
+
     first_col = col_letter(0)
 
     check_cell = ws[f"{last_q_col}{ROW_CHECK_BS_BALANCES_COUNT}"]
@@ -353,6 +409,23 @@ def build_fs_quarterly(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) 
         f"{last_q_col}{ROW_CHECK_DIRECT_TIES_INDIRECT}=0))"
     )
     direct_tie_count.font = Font(color=COLOR_FORMULA)
+
+    fcff_tie = ws[f"{last_q_col}{ROW_CHECK_FCFF_METHODS_TIE_COUNT}"]
+    fcff_tie.value = (
+        f"=SUMPRODUCT(--(ROUND({first_col}{ROW_FCFF_CF_METHOD}:{last_q_col}{ROW_FCFF_CF_METHOD}"
+        f"-{first_col}{ROW_FCFF_CFADS_METHOD}:{last_q_col}{ROW_FCFF_CFADS_METHOD},2)<>0))"
+    )
+    fcff_tie.font = Font(color=COLOR_FORMULA)
+
+    # SUM(Distributions - Injections) = SUM(CAFD) + Initial Buffer — see the note at
+    # ROW_FCFE_CF_METHOD above for the derivation from the buffer roll-forward.
+    fcfe_lifetime_tie = ws[f"{last_q_col}{ROW_CHECK_FCFE_LIFETIME_TIE}"]
+    fcfe_lifetime_tie.value = (
+        f"=IF(ROUND(SUM({first_col}{ROW_FCFE_DIVIDEND_METHOD}:{last_q_col}{ROW_FCFE_DIVIDEND_METHOD})"
+        f"-SUM({first_col}{ROW_FCFE_CF_METHOD}:{last_q_col}{ROW_FCFE_CF_METHOD})"
+        f"-Calc_Financing_Cons!{fin_cons.ABS_INITIAL_BUFFER},2)=0,1,0)"
+    )
+    fcfe_lifetime_tie.font = Font(color=COLOR_FORMULA)
 
     _add_named_range(wb, "FSQ_LastCol", "FS_Quarterly", f"{last_q_col}1")
     _add_named_range(wb, "FSQ_CashTiesBufferCheck", "FS_Quarterly", f"{last_q_col}{ROW_CHECK_CASH_TIES_BUFFER}")

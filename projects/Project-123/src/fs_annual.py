@@ -100,6 +100,17 @@ ROW_CHECK_BS_BALANCES_COUNT = 74
 ROW_CHECK_CASH_TIES_BUFFER = 75
 ROW_CHECK_DIRECT_TIES_INDIRECT_COUNT = 76
 
+# FCFF / FCFE — two views, cross-checked; annual sums of FS_Quarterly's own dual-view rows.
+# See FS_Quarterly for the full explanation of why FCFF ties exactly every period while
+# FCFE only ties in total (buffer/lock-up timing).
+ROW_FCF_HEADER = 78
+ROW_FCFF_CF_METHOD = 79
+ROW_FCFF_CFADS_METHOD = 80
+ROW_CHECK_FCFF_METHODS_TIE_COUNT = 81
+ROW_FCFE_CF_METHOD = 82
+ROW_FCFE_DIVIDEND_METHOD = 83
+ROW_CHECK_FCFE_LIFETIME_TIE = 84
+
 # Backward-compat aliases — the pre-classified BS exposed one row each for Debt and Cash;
 # downstream sheets (Valuation_SellDown) still want a single "closing debt"/"closing
 # equity" figure, which is unambiguous here since Debt is the only liability category.
@@ -112,41 +123,57 @@ ROW_TOTAL_EQUITY_CLOSING = ROW_BS_TOTAL_EQUITY
 # This block uses per-PERIOD columns (one column per month/quarter of the whole project
 # life), which is a different column scheme from the per-YEAR columns the three statements
 # above use — the two must never be read from each other's columns.
-ROW_XIRR_DATE = 79
-ROW_XIRR_PROJECT_CF = 80
-ROW_XIRR_EQUITY_CF = 81
+ROW_XIRR_DATE = 87
+ROW_XIRR_PROJECT_CF = 88
+ROW_XIRR_EQUITY_CF = 89
 
-ROW_PIRR_LABEL = 84
-ROW_PIRR_VALUE = 85
-ROW_EIRR_LABEL = 86
-ROW_EIRR_VALUE = 87
+ROW_PIRR_LABEL = 92
+ROW_PIRR_VALUE = 93
+ROW_EIRR_LABEL = 94
+ROW_EIRR_VALUE = 95
 
 # Construction-period annual summary (monthly source data rolled to project years)
-ROW_CONS_HEADER = 90
-ROW_CONS_YEAR_LABEL = 91
-ROW_CONS_CAPEX = 92
-ROW_CONS_IDC = 93
-ROW_CONS_DEBT_DRAWN = 94
-ROW_CONS_EQUITY_DRAWN = 95
-ROW_CONS_CUM_TPC = 96
-ROW_CONS_CLOSING_DEBT = 97
+ROW_CONS_HEADER = 98
+ROW_CONS_YEAR_LABEL = 99
+ROW_CONS_CAPEX = 100
+ROW_CONS_IDC = 101
+ROW_CONS_DEBT_DRAWN = 102
+ROW_CONS_EQUITY_DRAWN = 103
+ROW_CONS_CUM_TPC = 104
+ROW_CONS_CLOSING_DEBT = 105
 
 # Construction-period Balance Sheet — year-end, sourced from the same monthly cells as the
 # summary above. P&L is legitimately empty pre-COD (no revenue), but the BS still has to
 # provably balance every year so the Day-1 operating BS is derived, not asserted.
-ROW_CONS_BS_HEADER = 99
-ROW_CONS_BS_CASH = 100
-ROW_CONS_BS_DSRA = 101
-ROW_CONS_BS_PPE = 102
-ROW_CONS_BS_TOTAL_ASSETS = 103
-ROW_CONS_BS_DEBT = 104
-ROW_CONS_BS_PAID_IN_CAPITAL = 105
-ROW_CONS_BS_RETAINED_EARNINGS = 106
-ROW_CONS_BS_TOTAL_EQUITY = 107
-ROW_CONS_BS_TOTAL_LIAB_EQUITY = 108
+ROW_CONS_BS_HEADER = 107
+ROW_CONS_BS_CASH = 108
+ROW_CONS_BS_DSRA = 109
+ROW_CONS_BS_PPE = 110
+ROW_CONS_BS_TOTAL_ASSETS = 111
+ROW_CONS_BS_DEBT = 112
+ROW_CONS_BS_PAID_IN_CAPITAL = 113
+ROW_CONS_BS_RETAINED_EARNINGS = 114
+ROW_CONS_BS_TOTAL_EQUITY = 115
+ROW_CONS_BS_TOTAL_LIAB_EQUITY = 116
 
-ROW_CONS_CHECK_HEADER = 110
-ROW_CONS_CHECK_BS_BALANCES_COUNT = 111  # count of construction years where the BS does not balance
+ROW_CONS_CHECK_HEADER = 118
+ROW_CONS_CHECK_BS_BALANCES_COUNT = 119  # count of construction years where the BS does not balance
+
+# Construction Cash Flow Statement — monthly (matches Calc_Capex's own resolution), so the
+# XIRR helper's construction-period Equity CF reads from a built statement rather than
+# reaching into Calc_Capex directly. Investing includes capitalised interest (IDC is a
+# real investment, not a financing cost) so Net Cash Flow ties to zero every month except
+# the last, when the DSRA/Buffer are funded — the same cash pattern the construction BS
+# above already assumes.
+ROW_CONS_CF_HEADER = 121
+ROW_CONS_CF_INVESTING = 122     # -(Capex Draw + IDC)
+ROW_CONS_CF_DEBT_DRAWN = 123
+ROW_CONS_CF_EQUITY_DRAWN = 124
+ROW_CONS_CF_FINANCING = 125     # Debt Drawn + Equity Drawn
+ROW_CONS_CF_NET = 126
+
+ROW_CONS_CF_CHECK_HEADER = 128
+ROW_CONS_CF_CHECK_NET_ZERO_COUNT = 129  # # of months where Net CF != 0 (all but the last)
 
 
 def _annual_col_letter(i: int) -> str:
@@ -241,6 +268,17 @@ def build_fs_annual(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) -> 
     _label(ws, ROW_CHECK_CASH_TIES_BUFFER, "Check: Closing cash ties to FS_Quarterly at year-end")
     _label(ws, ROW_CHECK_DIRECT_TIES_INDIRECT_COUNT, "# of years where Direct CFO != Indirect CFO")
 
+    _section_header(ws, ROW_FCF_HEADER, "FREE CASH FLOW — TWO VIEWS, CROSS-CHECKED (annual sums)")
+    _label(ws, ROW_FCFF_CF_METHOD, "FCFF ($) — Cash Flow Statement method (annual sum)")
+    _label(ws, ROW_FCFF_CFADS_METHOD, "FCFF ($) — CFADS method (annual sum); used for reported PIRR")
+    _label(ws, ROW_CHECK_FCFF_METHODS_TIE_COUNT, "# of years where the two FCFF views differ (should be 0)")
+    _label(ws, ROW_FCFE_CF_METHOD,
+           "FCFE ($) — Cash Flow Statement method, pre-distribution-policy (annual sum)")
+    _label(ws, ROW_FCFE_DIVIDEND_METHOD,
+           "FCFE ($) — Dividend method (annual sum); used for reported EIRR")
+    _label(ws, ROW_CHECK_FCFE_LIFETIME_TIE,
+           "Check: whole-of-life FCFE (Dividend Method) = whole-of-life FCFE (CF Method) + Initial Buffer")
+
     annual_buckets = _operations_only_annual_buckets(timeline)
     n_years = len(annual_buckets)
 
@@ -271,6 +309,10 @@ def build_fs_annual(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) -> 
         (ROW_CFD_TAX_PAID, fsq.ROW_CFD_TAX_PAID),
         (ROW_CFD_LC_FEE_PAID, fsq.ROW_CFD_LC_FEE_PAID),
         (ROW_CFO_DIRECT, fsq.ROW_CFO_DIRECT),
+        (ROW_FCFF_CF_METHOD, fsq.ROW_FCFF_CF_METHOD),
+        (ROW_FCFF_CFADS_METHOD, fsq.ROW_FCFF_CFADS_METHOD),
+        (ROW_FCFE_CF_METHOD, fsq.ROW_FCFE_CF_METHOD),
+        (ROW_FCFE_DIVIDEND_METHOD, fsq.ROW_FCFE_DIVIDEND_METHOD),
     )
     stock_rows = (
         (ROW_BS_CASH, fsq.ROW_BS_CASH),
@@ -368,6 +410,21 @@ def build_fs_annual(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) -> 
     )
     direct_tie_count.font = Font(color=COLOR_FORMULA)
 
+    fcff_tie = ws[f"{last_col}{ROW_CHECK_FCFF_METHODS_TIE_COUNT}"]
+    fcff_tie.value = (
+        f"=SUMPRODUCT(--(ROUND({first_col}{ROW_FCFF_CF_METHOD}:{last_col}{ROW_FCFF_CF_METHOD}"
+        f"-{first_col}{ROW_FCFF_CFADS_METHOD}:{last_col}{ROW_FCFF_CFADS_METHOD},2)<>0))"
+    )
+    fcff_tie.font = Font(color=COLOR_FORMULA)
+
+    fcfe_lifetime_tie = ws[f"{last_col}{ROW_CHECK_FCFE_LIFETIME_TIE}"]
+    fcfe_lifetime_tie.value = (
+        f"=IF(ROUND(SUM({first_col}{ROW_FCFE_DIVIDEND_METHOD}:{last_col}{ROW_FCFE_DIVIDEND_METHOD})"
+        f"-SUM({first_col}{ROW_FCFE_CF_METHOD}:{last_col}{ROW_FCFE_CF_METHOD})"
+        f"-Calc_Financing_Cons!{fin_cons.ABS_INITIAL_BUFFER},2)=0,1,0)"
+    )
+    fcfe_lifetime_tie.font = Font(color=COLOR_FORMULA)
+
     _build_xirr_block(ws, wb, timeline)
 
     first_xirr_col = _xirr_col_letter(0)
@@ -393,6 +450,7 @@ def build_fs_annual(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) -> 
     eirr_cell.number_format = "0.00%"
 
     _build_construction_section(ws, timeline)
+    _build_construction_cash_flow(ws, timeline)
 
     _add_named_range(wb, "FSA_PIRR", "FS_Annual", f"A{ROW_PIRR_VALUE}")
     _add_named_range(wb, "FSA_EIRR", "FS_Annual", f"A{ROW_EIRR_VALUE}")
@@ -534,6 +592,65 @@ def _build_construction_section(ws: Worksheet, timeline: Timeline) -> None:
     cons_bs_check.font = Font(color=COLOR_FORMULA)
 
 
+def _build_construction_cash_flow(ws: Worksheet, timeline: Timeline) -> None:
+    """Monthly Construction Cash Flow Statement, matching Calc_Capex's own column
+    resolution. This is what the XIRR helper's construction-period Equity CF reads from —
+    see the note there for why Project CF (PIRR) deliberately does not."""
+    ws.cell(row=ROW_CONS_CF_HEADER, column=1,
+            value="CASH FLOW STATEMENT — construction period (monthly)").font = Font(
+        bold=True, size=11, underline="single")
+    ws.cell(row=ROW_CONS_CF_INVESTING, column=1,
+            value="Cash Flow from Investing ($) = -(Capex Draw + IDC Capitalised)")
+    ws.cell(row=ROW_CONS_CF_DEBT_DRAWN, column=1, value="Cash Flow from Financing — Debt Drawn ($)")
+    ws.cell(row=ROW_CONS_CF_EQUITY_DRAWN, column=1, value="Cash Flow from Financing — Equity Drawn ($)")
+    ws.cell(row=ROW_CONS_CF_FINANCING, column=1, value="Cash Flow from Financing ($)")
+    ws.cell(row=ROW_CONS_CF_NET, column=1,
+            value="Net Cash Flow ($) — 0 every month except the last (DSRA/Buffer funded then)")
+
+    ws.cell(row=ROW_CONS_CF_CHECK_HEADER, column=1, value="Checks").font = Font(bold=True)
+    ws.cell(row=ROW_CONS_CF_CHECK_NET_ZERO_COUNT, column=1,
+            value="# of months (excl. the last) where Net Cash Flow != 0")
+
+    n_cons = len(timeline.construction_months)
+    for i in range(n_cons):
+        col = _xirr_col_letter(i)
+
+        investing_cell = ws[f"{col}{ROW_CONS_CF_INVESTING}"]
+        investing_cell.value = (
+            f"=-Calc_Capex!{col}{capex.ROW_CAPEX_DRAW}-Calc_Financing_Cons!{col}{fin_cons.ROW_INTEREST_ACCRUED}"
+        )
+        investing_cell.font = Font(color=COLOR_LINK)
+        investing_cell.number_format = "#,##0"
+
+        debt_cell = ws[f"{col}{ROW_CONS_CF_DEBT_DRAWN}"]
+        debt_cell.value = f"=Calc_Financing_Cons!{col}{fin_cons.ROW_DEBT_DRAW}"
+        debt_cell.font = Font(color=COLOR_LINK)
+        debt_cell.number_format = "#,##0"
+
+        equity_cell = ws[f"{col}{ROW_CONS_CF_EQUITY_DRAWN}"]
+        equity_cell.value = f"=Calc_Financing_Cons!{col}{fin_cons.ROW_EQUITY_DRAW}"
+        equity_cell.font = Font(color=COLOR_LINK)
+        equity_cell.number_format = "#,##0"
+
+        financing_cell = ws[f"{col}{ROW_CONS_CF_FINANCING}"]
+        financing_cell.value = f"={col}{ROW_CONS_CF_DEBT_DRAWN}+{col}{ROW_CONS_CF_EQUITY_DRAWN}"
+        financing_cell.font = Font(color=COLOR_FORMULA, bold=True)
+        financing_cell.number_format = "#,##0"
+
+        net_cell = ws[f"{col}{ROW_CONS_CF_NET}"]
+        net_cell.value = f"={col}{ROW_CONS_CF_INVESTING}+{col}{ROW_CONS_CF_FINANCING}"
+        net_cell.font = Font(color=COLOR_FORMULA, bold=True)
+        net_cell.number_format = "#,##0"
+
+    first_col = _xirr_col_letter(0)
+    penultimate_col = _xirr_col_letter(n_cons - 2)
+    check_cell = ws[f"{_xirr_col_letter(n_cons - 1)}{ROW_CONS_CF_CHECK_NET_ZERO_COUNT}"]
+    check_cell.value = (
+        f"=SUMPRODUCT(--(ROUND({first_col}{ROW_CONS_CF_NET}:{penultimate_col}{ROW_CONS_CF_NET},2)<>0))"
+    )
+    check_cell.font = Font(color=COLOR_FORMULA)
+
+
 def _build_xirr_block(ws: Worksheet, wb: Workbook, timeline: Timeline) -> None:
     ws.cell(row=ROW_XIRR_DATE, column=1, value="XIRR Helper: Period End Date")
     ws.cell(row=ROW_XIRR_PROJECT_CF, column=1, value="XIRR Helper: Project CF (unlevered) — construction outflow, FCFF inflow")
@@ -551,14 +668,25 @@ def _build_xirr_block(ws: Worksheet, wb: Workbook, timeline: Timeline) -> None:
         date_cell.font = Font(color=COLOR_LINK)
         date_cell.number_format = "mmm-yy"
 
+        # Deliberately excludes IDC: PIRR is the return to a hypothetical all-equity,
+        # unlevered project, so the outflow is the capex spend itself — IDC only exists
+        # because the actual project is debt-financed, and including it would let the
+        # financing structure leak into a return that is supposed to be capital-structure-
+        # independent. This is why it's sourced from Calc_Capex directly rather than the
+        # Construction Cash Flow Statement below, whose Investing line correctly includes
+        # IDC for accounting purposes.
         proj_cf_cell = ws[f"{col}{ROW_XIRR_PROJECT_CF}"]
         proj_cf_cell.value = f"=-Calc_Capex!{capex_col_in_source}{capex.ROW_CAPEX_DRAW}"
         proj_cf_cell.font = Font(color=COLOR_LINK)
         proj_cf_cell.number_format = "#,##0"
 
+        # The equity investor's real cash flow, sourced from the Construction Cash Flow
+        # Statement below rather than Calc_Capex directly — same figure (Equity Drawn
+        # already correctly includes the investor's pro-rata share of IDC), now flowing
+        # through a built statement instead of skipping past it.
         equity_cf_cell = ws[f"{col}{ROW_XIRR_EQUITY_CF}"]
-        equity_cf_cell.value = f"=-Calc_Capex!{capex_col_in_source}{capex.ROW_EQUITY_DRAW}"
-        equity_cf_cell.font = Font(color=COLOR_LINK)
+        equity_cf_cell.value = f"=-{col}{ROW_CONS_CF_EQUITY_DRAWN}"
+        equity_cf_cell.font = Font(color=COLOR_FORMULA)
         equity_cf_cell.number_format = "#,##0"
 
     # Operations quarters: inflows
