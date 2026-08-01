@@ -17,9 +17,12 @@ import cover_refs as refs
 
 def _latest_output() -> Path:
     """Builds are date+version tagged, so the harness resolves the newest .xlsx rather
-    than a fixed name that silently goes stale the moment a new build lands."""
+    than a fixed name that silently goes stale the moment a new build lands. Sorted by
+    mtime, not filename: the DDMMYYYY tag string-sorts wrong across a month boundary
+    (e.g. "01082026" < "31072026" lexicographically, though Aug 1 is later) — mtime has
+    no such failure mode."""
     out_dir = Path(__file__).resolve().parent.parent / "output"
-    builds = sorted(out_dir.glob("project123_stage1c_*.xlsx"))
+    builds = sorted(out_dir.glob("project123_stage1c_*.xlsx"), key=lambda p: p.stat().st_mtime)
     if not builds:
         raise SystemExit(f"no built workbook found in {out_dir} — run build.py first")
     return builds[-1]

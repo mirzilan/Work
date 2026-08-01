@@ -12,6 +12,7 @@ import calc_financing_ops as fin_ops
 import calc_revenue_opex as rev_opex
 import calc_tax as tax
 import cover
+import fs_annual as fsa
 import fs_quarterly as fsq
 import valuation_selldown as selldown
 from timeline import Timeline
@@ -35,6 +36,7 @@ def _checks(timeline: Timeline) -> list[tuple[str, str, str, str]]:
     cons = col_letter(len(timeline.construction_months) - 1)
     ops = col_letter(len(timeline.operations_quarters) - 1)
     q4 = col_letter(3)
+    cons_yr = col_letter(fsa.n_construction_years(timeline) - 1)
 
     return [
         ("Cover", "Solve is current (assumptions unchanged since last solve)",
@@ -122,6 +124,10 @@ def _checks(timeline: Timeline) -> list[tuple[str, str, str, str]]:
          f"{ops}{fsq.ROW_CHECK_BS_BALANCES_COUNT}", COUNT),
         ("FS_Quarterly", "Closing cash ties to the Calc_CFADS buffer",
          f"{ops}{fsq.ROW_CHECK_CASH_TIES_BUFFER}", FLAG),
+        ("FS_Quarterly", "Direct CFO = Indirect CFO every quarter",
+         f"{ops}{fsq.ROW_CHECK_DIRECT_TIES_INDIRECT_COUNT}", COUNT),
+        ("FS_Annual", "Construction-period BS balances every year",
+         f"{cons_yr}{fsa.ROW_CONS_CHECK_BS_BALANCES_COUNT}", COUNT),
 
         ("Valuation_SellDown", "Sale price is 0 at the final exit year",
          f"B{selldown.ROW_CHECK_FINAL_EXIT_ZERO_PRICE}", FLAG),

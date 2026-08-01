@@ -45,6 +45,23 @@ ROW_CONS_EQUITY_DRAWN = 29
 ROW_CONS_CUM_TPC = 30
 ROW_CONS_CLOSING_DEBT = 31
 
+# Construction-period Balance Sheet — year-end, sourced from the same monthly cells as the
+# summary above. P&L is legitimately empty pre-COD (no revenue), but the BS still has to
+# provably balance every year so the Day-1 operating BS is derived, not asserted.
+ROW_CONS_BS_HEADER = 33
+ROW_CONS_BS_CASH = 34
+ROW_CONS_BS_DSRA = 35
+ROW_CONS_BS_PPE = 36
+ROW_CONS_BS_TOTAL_ASSETS = 37
+ROW_CONS_BS_DEBT = 38
+ROW_CONS_BS_PAID_IN_CAPITAL = 39
+ROW_CONS_BS_RETAINED_EARNINGS = 40
+ROW_CONS_BS_TOTAL_EQUITY = 41
+ROW_CONS_BS_TOTAL_LIAB_EQUITY = 42
+
+ROW_CONS_CHECK_HEADER = 44
+ROW_CONS_CHECK_BS_BALANCES_COUNT = 45  # count of construction years where the BS does not balance
+
 
 def _annual_col_letter(i: int) -> str:
     return openpyxl.utils.get_column_letter(FIRST_DATA_COL + i)
@@ -141,14 +158,33 @@ def _build_construction_section(ws: Worksheet, timeline: Timeline) -> None:
     ws.cell(row=ROW_CONS_CUM_TPC, column=1, value="Cumulative Total Project Cost ($) — year-end")
     ws.cell(row=ROW_CONS_CLOSING_DEBT, column=1, value="Closing Debt Balance ($) — year-end")
 
+    ws.cell(row=ROW_CONS_BS_HEADER, column=1,
+            value="Balance Sheet (year-end) — P&L is empty pre-COD, no revenue").font = Font(bold=True)
+    ws.cell(row=ROW_CONS_BS_CASH, column=1, value="Cash ($) — unrestricted; funded at Financial Close only")
+    ws.cell(row=ROW_CONS_BS_DSRA, column=1, value="DSRA Balance ($) — funded at Financial Close only")
+    ws.cell(row=ROW_CONS_BS_PPE, column=1, value="PP&E, Net ($) = Cumulative Capex + Cumulative IDC")
+    ws.cell(row=ROW_CONS_BS_TOTAL_ASSETS, column=1, value="Total Assets ($)")
+    ws.cell(row=ROW_CONS_BS_DEBT, column=1, value="Debt ($)")
+    ws.cell(row=ROW_CONS_BS_PAID_IN_CAPITAL, column=1, value="Paid-in Capital ($)")
+    ws.cell(row=ROW_CONS_BS_RETAINED_EARNINGS, column=1, value="Retained Earnings ($) — zero pre-COD, no P&L")
+    ws.cell(row=ROW_CONS_BS_TOTAL_EQUITY, column=1, value="Total Equity ($)")
+    ws.cell(row=ROW_CONS_BS_TOTAL_LIAB_EQUITY, column=1, value="Total Liabilities + Equity ($)")
+
+    ws.cell(row=ROW_CONS_CHECK_HEADER, column=1, value="Checks").font = Font(bold=True)
+    ws.cell(row=ROW_CONS_CHECK_BS_BALANCES_COUNT, column=1,
+            value="# of construction years where the BS does not balance")
+
     buckets: dict = {}
     for idx, period in enumerate(timeline.construction_months):
         buckets.setdefault(period.year_index, []).append(idx)
+    sorted_buckets = sorted(buckets.items())
+    n_cons_years = len(sorted_buckets)
 
-    for year_num, (_, month_indices) in enumerate(sorted(buckets.items())):
+    for year_num, (_, month_indices) in enumerate(sorted_buckets):
         col = _annual_col_letter(year_num)
         first_m = openpyxl.utils.get_column_letter(FIRST_DATA_COL + month_indices[0])
         last_m = openpyxl.utils.get_column_letter(FIRST_DATA_COL + month_indices[-1])
+        is_last_cons_year = year_num == n_cons_years - 1
 
         ws[f"{col}{ROW_CONS_YEAR_LABEL}"] = f"C-Yr {year_num + 1}"
 
@@ -167,6 +203,75 @@ def _build_construction_section(ws: Worksheet, timeline: Timeline) -> None:
                 cell.value = f"={sheet}!{last_m}{src_row}"
             cell.font = Font(color=COLOR_LINK)
             cell.number_format = "#,##0"
+
+        # DSRA and unrestricted cash are only ever funded in the final construction month
+        # (see Calc_Financing_Cons: Initial DSRA/Buffer are added to that month's funding
+        # requirement alone), so every year before COD is genuinely zero here, not omitted.
+        dsra_cell = ws[f"{col}{ROW_CONS_BS_DSRA}"]
+        if is_last_cons_year:
+            dsra_cell.value = f"=Calc_Financing_Cons!{fin_cons.ABS_INITIAL_DSRA}"
+            dsra_cell.font = Font(color=COLOR_LINK)
+        else:
+            dsra_cell.value = 0.0
+            dsra_cell.font = Font(color=COLOR_FORMULA)
+        dsra_cell.number_format = "#,##0"
+
+        cash_cell = ws[f"{col}{ROW_CONS_BS_CASH}"]
+        cash_cell.value = (
+            f"=Calc_Financing_Cons!{last_m}{fin_cons.ROW_CUM_DEBT_DRAW}"
+            f"+Calc_Financing_Cons!{last_m}{fin_cons.ROW_CUM_EQUITY_DRAW}"
+            f"-Calc_Capex!{last_m}{capex.ROW_CUM_CAPEX_DRAW}"
+            f"-Calc_Capex!{last_m}{capex.ROW_CUM_IDC}"
+            f"-{col}{ROW_CONS_BS_DSRA}"
+        )
+        cash_cell.font = Font(color=COLOR_FORMULA)
+        cash_cell.number_format = "#,##0"
+
+        ppe_cell = ws[f"{col}{ROW_CONS_BS_PPE}"]
+        ppe_cell.value = (
+            f"=Calc_Capex!{last_m}{capex.ROW_CUM_CAPEX_DRAW}+Calc_Capex!{last_m}{capex.ROW_CUM_IDC}"
+        )
+        ppe_cell.font = Font(color=COLOR_LINK)
+        ppe_cell.number_format = "#,##0"
+
+        assets_cell = ws[f"{col}{ROW_CONS_BS_TOTAL_ASSETS}"]
+        assets_cell.value = f"={col}{ROW_CONS_BS_CASH}+{col}{ROW_CONS_BS_DSRA}+{col}{ROW_CONS_BS_PPE}"
+        assets_cell.font = Font(color=COLOR_FORMULA)
+        assets_cell.number_format = "#,##0"
+
+        debt_bs_cell = ws[f"{col}{ROW_CONS_BS_DEBT}"]
+        debt_bs_cell.value = f"={col}{ROW_CONS_CLOSING_DEBT}"
+        debt_bs_cell.font = Font(color=COLOR_FORMULA)
+        debt_bs_cell.number_format = "#,##0"
+
+        paid_in_cell = ws[f"{col}{ROW_CONS_BS_PAID_IN_CAPITAL}"]
+        paid_in_cell.value = f"=Calc_Financing_Cons!{last_m}{fin_cons.ROW_CUM_EQUITY_DRAW}"
+        paid_in_cell.font = Font(color=COLOR_LINK)
+        paid_in_cell.number_format = "#,##0"
+
+        re_cell = ws[f"{col}{ROW_CONS_BS_RETAINED_EARNINGS}"]
+        re_cell.value = 0.0
+        re_cell.font = Font(color=COLOR_FORMULA)
+        re_cell.number_format = "#,##0"
+
+        equity_cell = ws[f"{col}{ROW_CONS_BS_TOTAL_EQUITY}"]
+        equity_cell.value = f"={col}{ROW_CONS_BS_PAID_IN_CAPITAL}+{col}{ROW_CONS_BS_RETAINED_EARNINGS}"
+        equity_cell.font = Font(color=COLOR_FORMULA)
+        equity_cell.number_format = "#,##0"
+
+        liab_eq_cell = ws[f"{col}{ROW_CONS_BS_TOTAL_LIAB_EQUITY}"]
+        liab_eq_cell.value = f"={col}{ROW_CONS_BS_DEBT}+{col}{ROW_CONS_BS_TOTAL_EQUITY}"
+        liab_eq_cell.font = Font(color=COLOR_FORMULA)
+        liab_eq_cell.number_format = "#,##0"
+
+    first_cons_col = _annual_col_letter(0)
+    last_cons_col = _annual_col_letter(n_cons_years - 1)
+    cons_bs_check = ws[f"{last_cons_col}{ROW_CONS_CHECK_BS_BALANCES_COUNT}"]
+    cons_bs_check.value = (
+        f"=SUMPRODUCT(--(ROUND({first_cons_col}{ROW_CONS_BS_TOTAL_ASSETS}:{last_cons_col}{ROW_CONS_BS_TOTAL_ASSETS}"
+        f"-{first_cons_col}{ROW_CONS_BS_TOTAL_LIAB_EQUITY}:{last_cons_col}{ROW_CONS_BS_TOTAL_LIAB_EQUITY},2)<>0))"
+    )
+    cons_bs_check.font = Font(color=COLOR_FORMULA)
 
 
 def _build_xirr_block(ws: Worksheet, wb: Workbook, timeline: Timeline) -> None:
@@ -216,6 +321,13 @@ def _build_xirr_block(ws: Worksheet, wb: Workbook, timeline: Timeline) -> None:
         equity_cf_cell.value = f"=Calc_CFADS!{ops_col_in_source}{cfads.ROW_FCFE}"
         equity_cf_cell.font = Font(color=COLOR_LINK)
         equity_cf_cell.number_format = "#,##0"
+
+
+def n_construction_years(timeline: Timeline) -> int:
+    """Exposed so callers (e.g. Check_Control) can locate the last construction-year
+    column without re-deriving the year bucketing this module already does."""
+    years = {p.year_index for p in timeline.construction_months}
+    return len(years)
 
 
 def _operations_only_annual_buckets(timeline: Timeline) -> dict:
