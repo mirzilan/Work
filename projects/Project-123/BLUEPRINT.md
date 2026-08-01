@@ -38,6 +38,7 @@ Reference document for the bankable project finance model engine. Check every bu
 | 🟨 Calc | `Calc_Financing_Cons` | Monthly | ✅ built (Loop 1 live) | Owns all funding: drawdown method, debt/equity draws, IDC solve |
 | 🟨 Calc | `Calc_Revenue_Opex` | Quarterly | ✅ built (index + escalation driven) | Revenue and opex = base x volume index x escalation index; opex escalates off its own base, not off escalated revenue. Also owns maintenance capex (routine % of revenue + lumpy) — it is revenue-driven and `Calc_Tax` must read it |
 | 🟨 Calc | `Calc_Tax` | Quarterly | ✅ built (multi-vintage) | Base depreciation on TPC + rolling-window maintenance vintages, tax, interest deduction |
+| 🟨 Calc | `Calc_Working_Capital` | Quarterly | ✅ built | Trade receivables/payables, DSO/DPO-style (Receivable/Payable Days, scenario-varying). Deliberately excluded from CFADS/debt-sizing/PIRR (same convention as excluding IDC from PIRR) — feeds the FS statements' cash walk and classified BS only. AR/AP wind to 0 in the final quarter so the whole-of-life ties hold |
 | 🟨 Calc | `Calc_CFADS` | Quarterly | ✅ built (MRA live) | Cash waterfall to FCFE and FCFF; owns the MRA. The DSRA lives on `Calc_Financing_Ops` — see below |
 | 🟨 Calc | `Calc_Financing_Ops` | Quarterly | ✅ built (Loop 2, DSRA, LLCR/PLCR live) | DSCR-locked sculpting + closed-form debt sizing; DSRA (cash-funded or LC-backed); LLCR/PLCR |
 | 🟩 Output | `FS_Quarterly` | Quarterly | ✅ built | 3-statements, FCFF/FCFE built once, PIRR/EIRR via `XIRR` |
