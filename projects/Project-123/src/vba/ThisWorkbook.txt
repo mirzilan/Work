@@ -1,0 +1,64 @@
+' ============================================================================
+'  ThisWorkbook  —  paste into the "ThisWorkbook" object, NOT a new module.
+'  (VBA editor: expand "Microsoft Excel Objects" and double-click ThisWorkbook.)
+'
+'  Why this exists: every rebuild regenerates the sheet XML from scratch, so any
+'  Form Control button drawn by hand is gone the next time the model is generated.
+'  The macro code itself survives (it lives in the VBA project, not the sheet), so
+'  the fix is to have the workbook redraw its own buttons on open, reading the
+'  macro/label table the build writes to Cover!ButtonSpec.
+'
+'  Consequence: adding a button later is a build-side change. Paste this once and
+'  it keeps working as new macros arrive.
+' ============================================================================
+
+Option Explicit
+
+Private Const BUTTON_LEFT As Double = 430
+Private Const BUTTON_TOP As Double = 20
+Private Const BUTTON_WIDTH As Double = 215  ' widened for the "[Tier]" caption prefixes
+Private Const BUTTON_HEIGHT As Double = 24
+Private Const BUTTON_GAP As Double = 5
+
+
+Private Sub Workbook_Open()
+    DrawControlPanel
+End Sub
+
+
+Public Sub DrawControlPanel()
+    Dim ws As Worksheet
+    Dim spec As Range
+    Dim macroCell As Range
+    Dim btn As Object
+    Dim slotIndex As Long
+    Dim topPos As Double
+
+    On Error Resume Next
+    Set spec = ThisWorkbook.Names("ButtonSpec").RefersToRange
+    On Error GoTo 0
+
+    If spec Is Nothing Then Exit Sub
+
+    ' The sheet the buttons live on follows wherever ButtonSpec is defined — currently
+    ' Cover, but a future move of the control panel needs no VBA change, only a rebuild.
+    Set ws = spec.Worksheet
+    If ws Is Nothing Then Exit Sub
+
+    ws.Buttons.Delete
+
+    ' Position tracks the row's slot index, not a count of buttons actually drawn --
+    ' a blank row in ButtonSpec is a deliberate tier gap (see cover.py's BUTTON_SPECS)
+    ' and has to consume real vertical space, or the tiers would draw touching each
+    ' other with nothing to show they're grouped differently.
+    slotIndex = 0
+    For Each macroCell In spec.Columns(1).Cells
+        topPos = BUTTON_TOP + slotIndex * (BUTTON_HEIGHT + BUTTON_GAP)
+        If Len(Trim$(CStr(macroCell.Value))) > 0 Then
+            Set btn = ws.Buttons.Add(BUTTON_LEFT, topPos, BUTTON_WIDTH, BUTTON_HEIGHT)
+            btn.OnAction = Trim$(CStr(macroCell.Value))
+            btn.Caption = Trim$(CStr(macroCell.Offset(0, 1).Value))
+        End If
+        slotIndex = slotIndex + 1
+    Next macroCell
+End Sub
