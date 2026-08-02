@@ -10,6 +10,10 @@ from inputs import ProjectInputs
 from timeline import Timeline
 from workbook_builder import (
     FIRST_DATA_COL,
+    COL_UNITS,
+    COL_TOTAL,
+    COL_CHECK,
+    COL_REMARKS,
     COLOR_FORMULA,
     COLOR_LINK,
     TAB_COLOR_OUTPUT,
@@ -29,6 +33,7 @@ ROW_FLAG_ACTIVE_SCENARIO = 2
 ROW_FLAG_MODEL_STATUS = 3
 ROW_FLAG_SOLVE_FRESHNESS = 4
 
+ROW_COLUMN_HEADER = 6  # Units/Total/Check/Remarks column headers, same row as FS_Quarterly
 ROW_YEAR_LABEL = 7
 
 # --- P&L (annual sums) ---
@@ -186,6 +191,104 @@ ROW_CONS_CF_CHECK_HEADER = 135
 ROW_CONS_CF_CHECK_NET_ZERO_COUNT = 136  # # of months where Net CF != 0 (all but the last)
 
 
+# Mirrors FS_Quarterly's own _METADATA table — same rows, same meaning, just annual-sum
+# totals instead of quarterly. Only covers the three main statements (P&L/BS/CF); the
+# XIRR helper and Construction sections use a different column scheme (per-period, not
+# per-year) and are deliberately left out of this pass.
+_METADATA = [
+    (ROW_REVENUE, "$", True, None, None),
+    (ROW_OPEX, "$", True, None, None),
+    (ROW_EBITDA, "$", True, None, None),
+    (ROW_DEPRECIATION, "$", True, None, None),
+    (ROW_EBIT, "$", True, None, None),
+    (ROW_INTEREST_EXPENSE, "$", True, None, None),
+    (ROW_EBT, "$", True, None, None),
+    (ROW_TAX, "$", True, None, None),
+    (ROW_LC_FEE, "$", True, None, None),
+    (ROW_NET_INCOME, "$", True, None, None),
+
+    (ROW_BS_CASH, "$", False, None, None),
+    (ROW_BS_AR, "$", False, None, None),
+    (ROW_BS_TOTAL_CURRENT_ASSETS, "$", False, None, None),
+    (ROW_BS_DSRA, "$", False, None, None),
+    (ROW_BS_MRA, "$", False, None, None),
+    (ROW_BS_PPE_NET, "$", False, None, None),
+    (ROW_BS_TOTAL_NONCURRENT_ASSETS, "$", False, None, None),
+    (ROW_BS_TOTAL_ASSETS, "$", False, "ROW_CHECK_BS_BALANCES_COUNT", "A = L + E, see Check column"),
+    (ROW_BS_DEBT_CURRENT, "$", False, None, None),
+    (ROW_BS_AP, "$", False, None, None),
+    (ROW_BS_TOTAL_CURRENT_LIAB, "$", False, None, None),
+    (ROW_BS_DEBT_NONCURRENT, "$", False, None, None),
+    (ROW_BS_TOTAL_NONCURRENT_LIAB, "$", False, None, None),
+    (ROW_BS_TOTAL_LIABILITIES, "$", False, None, None),
+    (ROW_BS_PAID_IN_CAPITAL, "$", False, None, None),
+    (ROW_BS_RETAINED_EARNINGS, "$", False, None, None),
+    (ROW_BS_TOTAL_EQUITY, "$", False, None, None),
+    (ROW_BS_TOTAL_LIAB_EQUITY, "$", False, None, None),
+
+    (ROW_CFO_NI, "$", True, None, None),
+    (ROW_CFO_ADDBACK_DEPR, "$", True, None, None),
+    (ROW_CFO_WC_CHANGE, "$", True, None, None),
+    (ROW_CFO, "$", True, None, None),
+    (ROW_CFI, "$", True, None, None),
+    (ROW_CFF_PRINCIPAL, "$", True, None, None),
+    (ROW_CFF_DIVIDENDS, "$", True, None, None),
+    (ROW_CFF_EQUITY_INJECTION, "$", True, None, None),
+    (ROW_CFF, "$", True, None, None),
+    (ROW_NET_CHANGE_TOTAL_CASH, "$", True, None, None),
+    (ROW_OPENING_TOTAL_CASH, "$", False, None, None),
+    (ROW_CLOSING_TOTAL_CASH, "$", False, None, None),
+    (ROW_CF_LESS_DSRA, "$", True, None, None),
+    (ROW_CF_LESS_MRA, "$", True, None, None),
+    (ROW_CLOSING_CASH, "$", False, "ROW_CHECK_CASH_TIES_BUFFER", None),
+
+    (ROW_CFD_RECEIPTS, "$", True, None, None),
+    (ROW_CFD_OPEX_PAID, "$", True, None, None),
+    (ROW_CFD_INTEREST_PAID, "$", True, None, None),
+    (ROW_CFD_TAX_PAID, "$", True, None, None),
+    (ROW_CFD_LC_FEE_PAID, "$", True, None, None),
+    (ROW_CFO_DIRECT, "$", True, "ROW_CHECK_DIRECT_TIES_INDIRECT_COUNT", None),
+
+    (ROW_FCFF_CF_METHOD, "$", True, None, None),
+    (ROW_FCFF_CFADS_METHOD, "$", True, "ROW_CHECK_FCFF_METHODS_TIE_COUNT", None),
+    (ROW_FCFE_CF_METHOD, "$", True, None, None),
+    (ROW_FCFE_DIVIDEND_METHOD, "$", True, "ROW_CHECK_FCFE_LIFETIME_TIE", None),
+]
+
+_CHECK_ROW_BY_NAME = {
+    "ROW_CHECK_BS_BALANCES_COUNT": ROW_CHECK_BS_BALANCES_COUNT,
+    "ROW_CHECK_CASH_TIES_BUFFER": ROW_CHECK_CASH_TIES_BUFFER,
+    "ROW_CHECK_DIRECT_TIES_INDIRECT_COUNT": ROW_CHECK_DIRECT_TIES_INDIRECT_COUNT,
+    "ROW_CHECK_FCFF_METHODS_TIE_COUNT": ROW_CHECK_FCFF_METHODS_TIE_COUNT,
+    "ROW_CHECK_FCFE_LIFETIME_TIE": ROW_CHECK_FCFE_LIFETIME_TIE,
+}
+
+
+def _build_metadata_columns(ws: Worksheet, first_col_idx: int, last_col_idx: int) -> None:
+    """See FS_Quarterly's own version of this function for the full rationale."""
+    first_col = _annual_col_letter(first_col_idx - FIRST_DATA_COL)
+    last_col = _annual_col_letter(last_col_idx - FIRST_DATA_COL)
+
+    for row, units, has_total, check_name, remarks in _METADATA:
+        units_cell = ws.cell(row=row, column=COL_UNITS, value=units)
+        units_cell.font = Font(italic=True, size=9, color="FF808080")
+
+        if has_total:
+            total_cell = ws.cell(row=row, column=COL_TOTAL,
+                                 value=f"=SUM({first_col}{row}:{last_col}{row})")
+            total_cell.font = Font(color=COLOR_FORMULA, bold=True)
+            total_cell.number_format = "#,##0"
+
+        if check_name:
+            check_row = _CHECK_ROW_BY_NAME[check_name]
+            check_cell = ws.cell(row=row, column=COL_CHECK,
+                                 value=f"={last_col}{check_row}")
+            check_cell.font = Font(color=COLOR_LINK)
+
+        if remarks:
+            ws.cell(row=row, column=COL_REMARKS, value=remarks).font = Font(italic=True, size=9)
+
+
 def _annual_col_letter(i: int) -> str:
     return openpyxl.utils.get_column_letter(FIRST_DATA_COL + i)
 
@@ -203,6 +306,11 @@ def build_fs_annual(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) -> 
     ws["A1"].font = Font(bold=True, size=12)
 
     _build_flags_block(ws)
+
+    for col, header in ((COL_UNITS, "Units"), (COL_TOTAL, "Total"), (COL_CHECK, "Check"),
+                        (COL_REMARKS, "Remarks")):
+        cell = ws.cell(row=ROW_COLUMN_HEADER, column=col, value=header)
+        cell.font = Font(bold=True, italic=True, size=9)
 
     ws.cell(row=ROW_YEAR_LABEL, column=1, value="Project Year")
 
@@ -418,6 +526,8 @@ def build_fs_annual(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) -> 
                ROW_CFD_HEADER, ROW_FCF_HEADER):
         style_section_header_row(ws, row, ann_first_col_idx, ann_last_col_idx)
 
+    _build_metadata_columns(ws, ann_first_col_idx, ann_last_col_idx)
+
     bs_check = ws[f"{last_col}{ROW_CHECK_BS_BALANCES_COUNT}"]
     bs_check.value = (
         f"=SUMPRODUCT(--(ROUND({first_col}{ROW_BS_TOTAL_ASSETS}:{last_col}{ROW_BS_TOTAL_ASSETS}"
@@ -491,6 +601,11 @@ def build_fs_annual(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) -> 
 
     ws.freeze_panes = ws.cell(row=ROW_PNL_HEADER, column=FIRST_DATA_COL)
     ws.column_dimensions["A"].width = 62
+    ws.column_dimensions["B"].width = 8
+    ws.column_dimensions["C"].width = 14
+    ws.column_dimensions["D"].width = 10
+    ws.column_dimensions["E"].width = 34
+    ws.column_dimensions["F"].width = 3
 
     return ws
 
@@ -708,7 +823,7 @@ def _build_xirr_block(ws: Worksheet, wb: Workbook, timeline: Timeline) -> None:
     # Construction months: outflows
     for i, period in enumerate(timeline.construction_months):
         col = _xirr_col_letter(i)
-        capex_col_in_source = openpyxl.utils.get_column_letter(3 + i)  # matches Calc_Capex's own column layout
+        capex_col_in_source = _xirr_col_letter(i)  # matches Calc_Capex's own column layout
 
         date_cell = ws[f"{col}{ROW_XIRR_DATE}"]
         date_cell.value = f"=Calc_Capex!{capex_col_in_source}{capex.ROW_DATE_HEADER}"
@@ -739,7 +854,7 @@ def _build_xirr_block(ws: Worksheet, wb: Workbook, timeline: Timeline) -> None:
     # Operations quarters: inflows
     for i, period in enumerate(timeline.operations_quarters):
         col = _xirr_col_letter(n_cons + i)
-        ops_col_in_source = openpyxl.utils.get_column_letter(3 + i)  # matches Calc_CFADS's own column layout
+        ops_col_in_source = _xirr_col_letter(i)  # matches Calc_CFADS's own column layout
 
         date_cell = ws[f"{col}{ROW_XIRR_DATE}"]
         date_cell.value = f"=Calc_CFADS!{ops_col_in_source}{cfads.ROW_DATE_HEADER}"

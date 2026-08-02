@@ -6,8 +6,20 @@ from openpyxl.worksheet.worksheet import Worksheet
 from inputs import ProjectInputs
 from timeline import Timeline
 
-# Column layout: column A/B reserved for labels, data starts at column C.
-FIRST_DATA_COL = 3  # column C
+# Column layout, EY/FAST-style: A=Label, B=Units, C=Total (where applicable),
+# D=Check (where applicable), E=Remarks, F=buffer (kept clear in case a first-period
+# formula ever needs to differ from the rest without disturbing the period grid),
+# period data starts at G. Every sheet in the workbook shares this same column scheme —
+# FIRST_DATA_COL is the one place that fact lives, so a period index always lands on the
+# same column letter on every sheet, which is what makes cross-sheet formulas
+# (e.g. `Calc_Revenue_Opex!{col}{row}`) safe to write without re-deriving an offset.
+COL_LABEL = 1
+COL_UNITS = 2
+COL_TOTAL = 3
+COL_CHECK = 4
+COL_REMARKS = 5
+COL_BUFFER = 6
+FIRST_DATA_COL = 7  # column G
 
 # FAST/Corality-style font colors (cell-level, per CLAUDE.md convention)
 COLOR_INPUT = "FF0000FF"  # blue: hardcoded inputs/assumptions

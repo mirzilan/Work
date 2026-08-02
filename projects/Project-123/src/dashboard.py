@@ -92,6 +92,16 @@ def build_dashboard(wb: Workbook, timeline: Timeline) -> Worksheet:
     _computed(ws, ROW_PIRR_VS_TARGET, "PIRR vs Target",
               f"=B{ROW_LIVE_PIRR}-B{ROW_TARGET_PIRR}", "0.00%")
 
+    # Units column — Dashboard is a single-value sheet (not a time series), so there's no
+    # Total/period grid to shift; Units sits in column C next to the value in B without
+    # disturbing anything else on the sheet.
+    for row, units in (
+        (ROW_MODEL_STATUS, "flag"), (ROW_SOLVE_FRESHNESS, "flag"), (ROW_ACTIVE_SCENARIO, "text"),
+        (ROW_TARGET_EIRR, "%"), (ROW_LIVE_EIRR, "%"), (ROW_EIRR_VS_TARGET, "%"),
+        (ROW_TARGET_PIRR, "%"), (ROW_LIVE_PIRR, "%"), (ROW_PIRR_VS_TARGET, "%"),
+    ):
+        ws.cell(row=row, column=3, value=units).font = Font(italic=True, size=9, color="FF808080")
+
     for row in (ROW_EIRR_VS_TARGET, ROW_PIRR_VS_TARGET):
         ws.conditional_formatting.add(
             f"B{row}", FormulaRule(formula=[f"B{row}>=0"], fill=FILL_GREEN),

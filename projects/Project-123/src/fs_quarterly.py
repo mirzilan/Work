@@ -19,6 +19,10 @@ from calc_revenue_opex import (
 )
 from workbook_builder import (
     FIRST_DATA_COL,
+    COL_UNITS,
+    COL_TOTAL,
+    COL_CHECK,
+    COL_REMARKS,
     COLOR_FORMULA,
     COLOR_LINK,
     TAB_COLOR_OUTPUT,
@@ -33,6 +37,7 @@ ROW_FLAG_ACTIVE_SCENARIO = 2
 ROW_FLAG_MODEL_STATUS = 3
 ROW_FLAG_SOLVE_FRESHNESS = 4
 
+ROW_COLUMN_HEADER = 6  # Units/Total/Check/Remarks column headers, one row above the timeline
 ROW_DATE_HEADER = 7
 ROW_QUARTER_INDEX = 8
 
@@ -173,6 +178,11 @@ def build_fs_quarterly(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) 
     ws["A1"].font = Font(bold=True, size=12)
 
     _build_flags_block(ws)
+
+    for col, header in ((COL_UNITS, "Units"), (COL_TOTAL, "Total"), (COL_CHECK, "Check"),
+                        (COL_REMARKS, "Remarks")):
+        cell = ws.cell(row=ROW_COLUMN_HEADER, column=col, value=header)
+        cell.font = Font(bold=True, italic=True, size=9)
 
     _label(ws, ROW_DATE_HEADER, "Period End Date")
     _label(ws, ROW_QUARTER_INDEX, "Operating Quarter #")
@@ -421,6 +431,8 @@ def build_fs_quarterly(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) 
                ROW_CFD_HEADER, ROW_FCF_HEADER):
         style_section_header_row(ws, row, first_col_idx, last_col_idx)
 
+    _build_metadata_columns(ws, first_col_idx, last_col_idx)
+
     first_col = col_letter(0)
 
     check_cell = ws[f"{last_q_col}{ROW_CHECK_BS_BALANCES_COUNT}"]
@@ -486,8 +498,116 @@ def build_fs_quarterly(wb: Workbook, timeline: Timeline, inputs: ProjectInputs) 
 
     ws.freeze_panes = ws.cell(row=ROW_PNL_HEADER, column=FIRST_DATA_COL)
     ws.column_dimensions["A"].width = 62
+    ws.column_dimensions["B"].width = 8
+    ws.column_dimensions["C"].width = 14
+    ws.column_dimensions["D"].width = 10
+    ws.column_dimensions["E"].width = 34
+    ws.column_dimensions["F"].width = 3
 
     return ws
+
+
+# (row, units, has_total, check_formula_or_None, remarks_or_None). Total is only set on
+# genuine flow rows (a lifetime SUM is meaningful) — stock/balance rows and ratios are
+# left blank rather than summing something a reader would misread as cumulative.
+_METADATA = [
+    (ROW_REVENUE, "$", True, None, None),
+    (ROW_OPEX, "$", True, None, None),
+    (ROW_EBITDA, "$", True, None, None),
+    (ROW_DEPRECIATION, "$", True, None, "Base vintage + maintenance vintages"),
+    (ROW_EBIT, "$", True, None, None),
+    (ROW_INTEREST_EXPENSE, "$", True, None, None),
+    (ROW_EBT, "$", True, None, None),
+    (ROW_TAX, "$", True, None, "Linked from Calc_Tax"),
+    (ROW_LC_FEE, "$", True, None, "Non-deductible; zero when the DSRA is cash-funded"),
+    (ROW_NET_INCOME, "$", True, None, None),
+
+    (ROW_BS_CASH, "$", False, None, None),
+    (ROW_BS_AR, "$", False, None, "Linked from Calc_Working_Capital"),
+    (ROW_BS_TOTAL_CURRENT_ASSETS, "$", False, None, None),
+    (ROW_BS_DSRA, "$", False, None, None),
+    (ROW_BS_MRA, "$", False, None, None),
+    (ROW_BS_PPE_NET, "$", False, None, None),
+    (ROW_BS_TOTAL_NONCURRENT_ASSETS, "$", False, None, None),
+    (ROW_BS_TOTAL_ASSETS, "$", False, "ROW_CHECK_BS_BALANCES_COUNT", "A = L + E, see Check column"),
+    (ROW_BS_DEBT_CURRENT, "$", False, None, None),
+    (ROW_BS_AP, "$", False, None, "Linked from Calc_Working_Capital"),
+    (ROW_BS_TOTAL_CURRENT_LIAB, "$", False, None, None),
+    (ROW_BS_DEBT_NONCURRENT, "$", False, None, None),
+    (ROW_BS_TOTAL_NONCURRENT_LIAB, "$", False, None, None),
+    (ROW_BS_TOTAL_LIABILITIES, "$", False, None, None),
+    (ROW_BS_PAID_IN_CAPITAL, "$", False, None, None),
+    (ROW_BS_RETAINED_EARNINGS, "$", False, None, None),
+    (ROW_BS_TOTAL_EQUITY, "$", False, None, None),
+    (ROW_BS_TOTAL_LIAB_EQUITY, "$", False, None, None),
+
+    (ROW_CFO_NI, "$", True, None, None),
+    (ROW_CFO_ADDBACK_DEPR, "$", True, None, None),
+    (ROW_CFO_WC_CHANGE, "$", True, None, "Linked from Calc_Working_Capital"),
+    (ROW_CFO, "$", True, None, None),
+    (ROW_CFI, "$", True, None, "Maintenance capex"),
+    (ROW_CFF_PRINCIPAL, "$", True, None, None),
+    (ROW_CFF_DIVIDENDS, "$", True, None, None),
+    (ROW_CFF_EQUITY_INJECTION, "$", True, None, "Shortfalls the buffer could not cover"),
+    (ROW_CFF, "$", True, None, None),
+    (ROW_NET_CHANGE_TOTAL_CASH, "$", True, None, None),
+    (ROW_OPENING_TOTAL_CASH, "$", False, None, None),
+    (ROW_CLOSING_TOTAL_CASH, "$", False, None, None),
+    (ROW_CF_LESS_DSRA, "$", True, None, None),
+    (ROW_CF_LESS_MRA, "$", True, None, None),
+    (ROW_CLOSING_CASH, "$", False, "ROW_CHECK_CASH_TIES_BUFFER", None),
+
+    (ROW_CFD_RECEIPTS, "$", True, None, None),
+    (ROW_CFD_OPEX_PAID, "$", True, None, None),
+    (ROW_CFD_INTEREST_PAID, "$", True, None, None),
+    (ROW_CFD_TAX_PAID, "$", True, None, None),
+    (ROW_CFD_LC_FEE_PAID, "$", True, None, None),
+    (ROW_CFO_DIRECT, "$", True, "ROW_CHECK_DIRECT_TIES_INDIRECT_COUNT", None),
+
+    (ROW_FCFF_CF_METHOD, "$", True, None, None),
+    (ROW_FCFF_CFADS_METHOD, "$", True, "ROW_CHECK_FCFF_METHODS_TIE_COUNT", None),
+    (ROW_FCFE_CF_METHOD, "$", True, None, None),
+    (ROW_FCFE_DIVIDEND_METHOD, "$", True, "ROW_CHECK_FCFE_LIFETIME_TIE", None),
+]
+
+# Rows named above by string in _METADATA's check column, resolved once the sheet-level
+# check row constants are all defined — keeps the table itself readable as plain data.
+_CHECK_ROW_BY_NAME = {
+    "ROW_CHECK_BS_BALANCES_COUNT": ROW_CHECK_BS_BALANCES_COUNT,
+    "ROW_CHECK_CASH_TIES_BUFFER": ROW_CHECK_CASH_TIES_BUFFER,
+    "ROW_CHECK_DIRECT_TIES_INDIRECT_COUNT": ROW_CHECK_DIRECT_TIES_INDIRECT_COUNT,
+    "ROW_CHECK_FCFF_METHODS_TIE_COUNT": ROW_CHECK_FCFF_METHODS_TIE_COUNT,
+    "ROW_CHECK_FCFE_LIFETIME_TIE": ROW_CHECK_FCFE_LIFETIME_TIE,
+}
+
+
+def _build_metadata_columns(ws: Worksheet, first_col_idx: int, last_col_idx: int) -> None:
+    """Units / Total / Check / Remarks — populated from _METADATA rather than inline at
+    each label call, so the label-writing code above stays readable and this table can be
+    scanned/edited as one place. Total sums the row's own period range; Check links to
+    whichever sheet-level check row already proves that line, so the reader doesn't have
+    to scroll to the bottom Checks block to see if a given row ties out."""
+    first_col = col_letter(first_col_idx - FIRST_DATA_COL)
+    last_col = col_letter(last_col_idx - FIRST_DATA_COL)
+
+    for row, units, has_total, check_name, remarks in _METADATA:
+        units_cell = ws.cell(row=row, column=COL_UNITS, value=units)
+        units_cell.font = Font(italic=True, size=9, color="FF808080")
+
+        if has_total:
+            total_cell = ws.cell(row=row, column=COL_TOTAL,
+                                 value=f"=SUM({first_col}{row}:{last_col}{row})")
+            total_cell.font = Font(color=COLOR_FORMULA, bold=True)
+            total_cell.number_format = "#,##0"
+
+        if check_name:
+            check_row = _CHECK_ROW_BY_NAME[check_name]
+            check_cell = ws.cell(row=row, column=COL_CHECK,
+                                 value=f"={last_col}{check_row}")
+            check_cell.font = Font(color=COLOR_LINK)
+
+        if remarks:
+            ws.cell(row=row, column=COL_REMARKS, value=remarks).font = Font(italic=True, size=9)
 
 
 def _current_debt_formula(i: int, n_quarters: int, col: str, closing_bal_formula: str) -> str:

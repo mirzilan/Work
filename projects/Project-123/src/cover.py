@@ -389,6 +389,19 @@ def _build_goalseek_block(ws: Worksheet, wb: Workbook, tenor_end_col: str,
     _linked(ws, ROW_LIVE_MIN_LLCR, "Min LLCR while debt outstanding",
             f'=IFERROR(SMALL({llcr_range},COUNTIF({llcr_range},"<=0")+1),0)', "0.000")
 
+    # Units — this block (Goal Seek + Live Readings) is the one tabular, uniform section
+    # of Cover; the settings above it are free-form (dropdowns + their own inline notes)
+    # and don't fit a Units column the same way, so this is scoped to rows 34-56 only.
+    for row, units in (
+        (ROW_TARGET_EIRR, "%"), (ROW_TARGET_PIRR, "%"),
+        (ROW_LIVE_EIRR, "%"), (ROW_LIVE_PIRR, "%"),
+        (ROW_EIRR_VS_TARGET, "%"), (ROW_PIRR_VS_TARGET, "%"),
+        (ROW_ON_TARGET, "flag"), (ROW_GOALSEEK_TOLERANCE, "%"),
+        (ROW_LIVE_TPC, "$"), (ROW_LIVE_DEBT_FACILITY, "$"), (ROW_LIVE_GEARING, "%"),
+        (ROW_LIVE_MIN_DSCR, "x"), (ROW_LIVE_MIN_LLCR, "x"),
+    ):
+        ws.cell(row=row, column=3, value=units).font = Font(italic=True, size=9, color="FF808080")
+
     for name, row in (
         ("GoalSeek_TargetEIRR", ROW_TARGET_EIRR),
         ("GoalSeek_TargetPIRR", ROW_TARGET_PIRR),
@@ -515,9 +528,13 @@ def _build_freshness_block(ws: Worksheet, wb: Workbook, n_construction_months: i
         cell = ws.cell(row=ROW_SNAPSHOT_TABLE_HEADER, column=col, value=header)
         cell.font = Font(bold=True)
 
-    phasing_last_col = get_column_letter(3 + n_construction_months - 1)
+    from workbook_builder import col_letter as _col_letter
+    phasing_first_col = _col_letter(0)
+    phasing_last_col = _col_letter(n_construction_months - 1)
     phasing_row = model.ROW_PHASING_PCT
-    phasing_range = f"Assumptions_Model!$C${phasing_row}:${phasing_last_col}${phasing_row}"
+    phasing_range = (
+        f"Assumptions_Model!${phasing_first_col}${phasing_row}:${phasing_last_col}${phasing_row}"
+    )
     phasing_signature = f"=SUMPRODUCT({phasing_range},COLUMN({phasing_range}))"
 
     for i, (label, formula) in enumerate(TRACKED_INPUTS):
